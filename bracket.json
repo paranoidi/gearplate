@@ -1,0 +1,12 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "bracket-example": {
+            "device_w": "60",
+            "device_h": "100",
+            "device_d": "25",
+            "a_cut1": "[20, 10, 0]",
+            "b_cut1": "[12, 8, 15]"
+        }
+    }
+}
