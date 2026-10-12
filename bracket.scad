@@ -141,5 +141,7 @@ module cap(cutouts) {
     }
 }
 
-cap(cuts[0]);
-translate([outer_w + 2*flange_w + 5, 0, 0]) cap(cuts[1]);
+if (is_undef(assembly)) {  // assembly.scad places them itself
+    cap(cuts[0]);
+    translate([outer_w + 2*flange_w + 5, 0, 0]) cap(cuts[1]);
+}

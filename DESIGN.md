@@ -2,7 +2,7 @@
 
 > **Living document.** This file records the current understanding of the design, and it gets updated whenever a feature is refined. If the code and this file disagree, fix one of them in the same change.
 >
-> Last updated: 2026-10-12
+> Last updated: 2026-10-13
 
 ## Purpose
 A parametric OpenSCAD generator for **device mounting boards for openGrid**. A device is screwed onto the board's face using heat-set inserts. The board snaps onto an openGrid wall through snaps at its corners.
@@ -23,6 +23,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 5. **R5. Lite toggle.** Full or Lite snaps can be chosen.
 6. **R6. Cable slots.** Up to 8 rounded through-slots, each given as `x1,y1 → x2,y2` in hole-grid coordinates. Slots can sit mid-board or open out of an edge, and they must **never** overlap a corner snap.
 7. **R7. Device end caps** (`bracket.scad`). This is a pair of caps, one over each end of a box-shaped device, sized from `device_w/h/d`. Each cap screws onto the hole grid. Screws need room for a screwdriver plus a margin. The end wall is the lip at the cap's edge, and the cap prints lying on it with no supports. Each cap has its own end-wall notches, given as width, height and x offset, where 0 means centred.
+8. **R8. Assembly view** (`assembly.scad`). One preview shows a plate, both end caps screwed onto real plate holes, and the device as a block, roughly centred on the plate. It is a fit check, not a printable part.
 
 ## Current design decisions
 | # | Decision | Why |
@@ -44,6 +45,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D16 | Cutouts are **end-wall notches open from the plate side**, `[w, h, x_offset]`. The offset is seen from outside with the strap on top, + to the right. Each notch is asserted to stay inside the inner width and below the strap | For cables or ports leaving the device's end. The side walls and strap always stay whole. |
 | D17 | Caps get a **0.4 mm chamfer** (`chamfer`) on every outside edge. The parts are modelled as overlapping boxes, each shrunk by the chamfer, unioned, then `minkowski`'d with an octahedron. Screw holes get conical chamfers at both ends, and notches get hull-built chamfers on both end-wall faces and on the plate side. Inside corners stay sharp | User request. The overlap at joints (the flanges reach into the side walls) means the seams have no grooves. |
 | D18 | The board gets a **0.4 mm 45° chamfer** (`chamfer`) on all outer edges, vertical corners included, and on both rims of every cable slot. The board is a hull of octahedra inset by `chamfer` (`chamfered_box()`). Each slot cutter is three separate hulls: the straight wall plus a flare at each face (`chamfered_slot()`). The snap-overlap check uses `slot_r + chamfer` | User request. A single hull over both flares would have filled the whole slot out to r + c. That happened in the first attempt, and slicing the STL caught it. Insert holes are not chamfered. |
+| D19 | The assembly **`include`s both models**. Their top-level part calls are guarded with `if (is_undef(assembly))`, so standalone builds don't change. Caps are snapped to hole indices `i0 = round((2·cells − 1 − n)/2)` (the same for rows), where n is the screw spacing in holes. That centres exactly when n is odd and lands 7 mm off when it's even. It is an error if the plate is too small | `use` would hide `-D`/Customizer overrides from the models' globals. The models share no top-level names except identical ones (`pitch`, `octahedron`) and `chamfer`, which becomes one knob for both. |
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
@@ -56,14 +58,18 @@ Hidden: `cell` = 28, `pitch` = 14.
 `device_w`, `device_h`, `device_d` (60/100/25), `fit` (0.5), `wall` (3), `flange_t` (4), `cap_len` (15, the end wall included), `screw_d` (3.4), `driver_d` (7), `driver_margin` (1), `chamfer` (0.4, 0 means sharp).
 Cutouts: `a_cut1..4`, `b_cut1..4` = `[w, h, x_offset]` (`[0,0,0]` means off). Presets are in `bracket.json`, with names prefixed `bracket-`.
 
+### `assembly.scad`
+All parameters of both models apply. The defaults are `cells_x`=4 and `cells_y`=5, so the default 60×100 device fits. The frame has the device face at z=0, X across the device and Y along it. Open it in the GUI and preview (F5) to see the colours.
+
 ## Tooling
 | What | How |
 |---|---|
 | Presets | `gearplate.json`, which holds OpenSCAD Customizer parameter sets. They also show up in the GUI Customizer. |
 | Build all presets | `task` writes `out/<preset>.stl`. Presets build in parallel, and ones that are already up to date are skipped. |
 | One preset | `task stl P=2x3`. An unknown preset name is an error. Bracket presets work the same way (`task stl P=bracket-example`), because the task finds which preset file defines P. `task` builds both preset files. |
+| Assembly | `task assembly` writes `out/assembly.stl` and a coloured `out/assembly.png` from `assembly.scad` with its default parameters. `task` builds it too. |
 | One-off | `task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'` |
-| Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule) and `tests/bracket.scad` (cap screws on the grid both ways, screwdriver clearance). |
+| Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule) `tests/bracket.scad` (cap screws on the grid both ways, screwdriver clearance) and `tests/assembly.scad` (every cap screw in the assembly lands on a plate hole). |
 | Tooling | `task setup` downloads the latest OpenSCAD nightly AppImage and BOSL2 into `.tools/` (gitignored). Re-running it updates both, and it skips the download if that nightly is already installed. |
 | Engine choice | `$OPENSCAD` env if set, otherwise `.tools/openscad --backend=Manifold` if present, otherwise system `openscad`. BOSL2 comes from `.tools/libraries` (`OPENSCADPATH`) when present. A new nightly rebuilds every STL. |
 | List tasks | `task --list` |
@@ -87,6 +93,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-13.** Added `assembly.scad` (R8, D19): plate, caps and device block in one view, plus `tests/assembly.scad` and `task assembly`.
 - **2026-10-12.** Posts now use the snap outline instead of a Ø18 cylinder (D5). `post_diameter` removed.
 - **2026-10-12.** Gearplate: 0.4 mm chamfer on board edges and slot rims (D18).
 - **2026-10-12.** Caps: 0.4 mm chamfer on all outside edges, holes and notches (D17).

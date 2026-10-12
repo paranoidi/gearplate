@@ -1,6 +1,7 @@
 # Build STLs from the presets in gearplate.json (OpenSCAD Customizer parameter sets).
 #   task                 all presets -> out/<preset>.stl (skips up-to-date ones)
 #   task stl P=2x3       one preset (from gearplate.json or bracket.json)
+#   task assembly        plate + caps + device fit check -> out/assembly.stl/.png
 #   task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'
 #   task test            logic checks
 #   task setup           fetch latest OpenSCAD nightly + BOSL2 into .tools/ (used automatically)
@@ -35,6 +36,7 @@ tasks:
       - for: { var: BRACKET_PRESETS }
         task: stl
         vars: { P: '{{.ITEM}}' }
+      - assembly
 
   stl:
     desc: Build one preset (P=<name>)
@@ -54,6 +56,17 @@ tasks:
       - mkdir -p out
       - '{{.OPENSCAD}} -p {{.F}}.json -P {{.P}} -o out/{{.P}}.stl {{.F}}.scad'
 
+  assembly:
+    desc: Build the fit-check assembly (STL, plus a coloured PNG)
+    method: checksum
+    sources: [assembly.scad, gearplate.scad, bracket.scad, opengrid-snap.scad, .tools/openscad.version]
+    generates: [out/assembly.stl, out/assembly.png]
+    cmds:
+      - mkdir -p out
+      - '{{.OPENSCAD}} -o out/assembly.stl assembly.scad'
+      # preview mode keeps the colours (an STL can't)
+      - '{{.OPENSCAD}} -o out/assembly.png --imgsize=1000,800 --viewall --autocenter --camera=0,0,0,55,0,25,0 assembly.scad'
+
   custom:
     desc: One-off build with -D overrides (ARGS, NAME)
     cmds:
@@ -61,12 +74,12 @@ tasks:
       - '{{.OPENSCAD}} {{.ARGS}} -o out/{{.NAME | default "custom"}}.stl gearplate.scad'
 
   test:
-    desc: Run logic asserts (seam continuity, snap de-dup, slots, bracket grid)
+    desc: Run logic asserts (seam continuity, snap de-dup, slots, bracket grid, assembly)
     silent: true
     cmds:
       - mkdir -p out
       # .echo export needs no geometry, but exits 0 on failed asserts: grep for them
-      - for: [seam, slots, bracket]
+      - for: [seam, slots, bracket, assembly]
         cmd: |
           {{.OPENSCAD}} -o out/{{.ITEM}}.echo tests/{{.ITEM}}.scad 2>/dev/null
           cat out/{{.ITEM}}.echo

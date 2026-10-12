@@ -151,4 +151,4 @@ module gearplate() {
     }
 }
 
-gearplate();
+if (is_undef(assembly)) gearplate();  // assembly.scad places it itself
