@@ -47,6 +47,8 @@ pitch = 14;
 snap_h = lite ? 3.4 : 6.8;
 $fs = 0.5;
 $fa = 5;
+// Slot ends closer than slot_r + this to an edge open out through it (no thin slivers)
+edge_min_wall = 2;
 
 // Hole centres along one axis, relative to the cell lattice (not the board edge),
 // so a neighbour offset by n*28 continues the same 14mm pattern.
@@ -56,15 +58,36 @@ function snap_pos(cells) = cells == 1 ? [cell/2] : [cell/2, cells*cell - cell/2]
 // Front-view hole index -> model XY. Print orientation is the device face seen
 // from below, so X is mirrored.
 function slot_pt(ix, iy, cx) = [cx*cell - (pitch/2 + ix*pitch), pitch/2 + iy*pitch];
-// True if slot s = [x1,y1,x2,y2] comes within r of any snap footprint (24.8 square).
+// Slot -> capsules [[a, b], ...] in model XY: the main slot plus, for each end that
+// meets an edge, a straight extension out past that edge. The extension's sides are
+// the circle's tangents, so the notch has parallel walls and leaves no sliver.
+// An end meets an edge if its index is -1 / 2*cells (clamped to the edge row) or its
+// circle comes within r + edge_min_wall of the edge.
+function slot_segs(s, cx, cy, r) =
+    let (lim = [2*cx - 1, 2*cy - 1], size = [cx*cell, cy*cell],
+         ends = [[s[0], s[1]], [s[2], s[3]]],
+         cl = [for (e = ends) [for (ax = [0, 1]) min(max(e[ax], 0), lim[ax])]],
+         main = [for (e = cl) slot_pt(e[0], e[1], cx)],
+         raw = [for (e = ends) slot_pt(e[0], e[1], cx)])
+    concat([main], [for (k = [0, 1], ax = [0, 1])
+        let (p = main[k],
+             lo = p[ax] - edge_gap, hi = size[ax] - edge_gap - p[ax],
+             dir = raw[k][ax] != p[ax] ? sign(raw[k][ax] - p[ax])
+                 : lo < r + edge_min_wall ? -1
+                 : hi < r + edge_min_wall ? 1 : 0,
+             d = (dir < 0 ? lo : hi) + r + 1)
+        if (dir != 0) [p, p + dir * d * (ax == 0 ? [1, 0] : [0, 1])]]);
+// True if segment a-b, swept by r, comes within reach of any snap footprint (24.8 square).
 // ponytail: samples the segment every <=0.5mm and treats the snap as a square grown
 // by r, which is conservative near snap corners.
-function slot_hits_snap(s, cx, cy, r) =
-    let (a = slot_pt(s[0], s[1], cx), b = slot_pt(s[2], s[3], cx),
-         n = max(1, ceil(norm(b - a) / 0.5)))
+function seg_hits_snap(a, b, cx, cy, r) =
+    let (n = max(1, ceil(norm(b - a) / 0.5)))
     len([for (i = [0 : n], x = snap_pos(cx), y = snap_pos(cy))
          let (p = a + (b - a) * i / n)
          if (max(abs(p[0] - x), abs(p[1] - y)) < 24.8/2 + r) 1]) > 0;
+// True if any part of slot s = [x1,y1,x2,y2], edge extensions included, hits a snap.
+function slot_hits_snap(s, cx, cy, r) =
+    len([for (g = slot_segs(s, cx, cy, r)) if (seg_hits_snap(g[0], g[1], cx, cy, r)) 1]) > 0;
 
 assert(cells_x >= 1 && cells_y >= 1, "cells must be >= 1");
 assert(post_diameter <= 24.8, "post_diameter must fit within the 24.8mm snap");
@@ -87,8 +110,8 @@ module gearplate() {
             cube([cells_x*cell - 2*edge_gap, cells_y*cell - 2*edge_gap, board_thickness]);
         for (x = hole_pos(cells_x), y = hole_pos(cells_y))
             translate([x, y, -eps]) cylinder(d=insert_d, h=board_thickness + 2*eps);
-        for (s = slots) if (s != [0, 0, 0, 0])
-            hull() for (p = [slot_pt(s[0], s[1], cells_x), slot_pt(s[2], s[3], cells_x)])
+        for (s = slots) if (s != [0, 0, 0, 0]) for (g = slot_segs(s, cells_x, cells_y, slot_r))
+            hull() for (p = g)
                 translate([p[0], p[1], -eps]) cylinder(r=slot_r, h=board_thickness + 2*eps);
     }
     for (x = snap_pos(cells_x), y = snap_pos(cells_y)) translate([x, y, 0]) {

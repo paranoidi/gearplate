@@ -53,6 +53,7 @@ tasks:
 
   test:
     desc: Run logic asserts (seam continuity, snap de-dup, slots)
+    silent: true
     cmds:
       - mkdir -p out
       # .echo export needs no geometry, but exits 0 on failed asserts: grep for them

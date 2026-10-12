@@ -17,4 +17,12 @@ assert(!slot_hits_snap([2, 2, 5, 5], 4, 4, 7));    // mid-board diagonal
 // radius counts: col 2 is 21mm from the snap centre; clear at r=7, hits at r=10
 assert(!slot_hits_snap([2, 1, 3, 1], 4, 4, 7));
 assert(slot_hits_snap([2, 1, 3, 1], 4, 4, 10));
+// edge extensions (4x4 board, 112mm, board edge at 0.3 / 111.7)
+assert(len(slot_segs([2, 2, 5, 5], 4, 4, 7)) == 1);             // mid-board: plain capsule
+er = slot_segs([2, 0, 5, 0], 4, 4, 7);                          // edge row: both ends open down
+assert(len(er) == 3 && er[1][1][1] < -7 && er[2][1][1] < -7 && er[1][1][0] == er[1][0][0]);
+px = slot_segs([-1, 3, 1, 3], 4, 4, 7);                         // -1 clamps to col 0, exits left
+assert(len(px) == 2 && px[0][0] == slot_pt(0, 3, 4) && px[1][1][0] > 112 + 7 && px[1][1][1] == px[0][0][1]);
+assert(len(slot_segs([2, 0, 5, 0], 4, 4, 4)) == 1);             // small r keeps its edge wall
+assert(!slot_hits_snap([5, -1, 3, 2], 4, 4, 7));                // diagonal exit between snaps
 echo("PASS slots");

@@ -34,7 +34,8 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D5 | The post is a cylinder, Ø18 mm by default (it must be ≤ 24.8) | It's the simplest shape that fits inside the snap's top plate. |
 | D6 | The model is output in **print orientation**: device face on the bed, snaps up | No supports are needed, and each snap prints the way a standalone snap does. |
 | D9 | Slots have **r = 7 mm (14 mm wide, one hole pitch)** and cut the board only | The slot edge falls halfway between hole rows, so neighbouring rows keep their holes with about 5 mm of wall. That's wide enough for USB-C or barrel plugs. |
-| D10 | Slot coordinates are **hole indices seen from the device face**: (0,0) is the bottom-left hole. -1 or 2×cells is one pitch past an edge, so the slot opens out of that side | `slot_pt()` mirrors X because print orientation flips the face. Positions are lattice-based like D1, so a slot on the same row continues across neighbouring boards. |
+| D10 | Slot coordinates are **hole indices seen from the device face**: (0,0) is the bottom-left hole. −1 or 2×cells means "exit through that edge": the end is clamped to the edge row and extended straight out (D12) | `slot_pt()` mirrors X because print orientation flips the face. Positions are lattice-based like D1, so a slot on the same row continues across neighbouring boards. |
+| D12 | Slot ends at an edge get a **straight extension out through the edge** (`slot_segs()`), perpendicular to that edge, with walls along the circle's tangents. An end qualifies if its index is −1/2×cells (clamped to the edge row) or its circle comes within `slot_r + edge_min_wall` (2 mm, hidden) of the edge | User report: an r=7 circle on the edge row (centre 6.7 mm from the edge) grazed the edge and left razor-thin spikes. With r=7, edge-row ends always open; a smaller `slot_r` keeps a wall of at least 2 mm. Extensions are included in the snap-overlap check. |
 | D11 | A slot overlapping a corner snap is an **error** (`slot_hits_snap()` + `assert`). It checks the snap square grown by `slot_r`, which is conservative at the corners | User rule: slots never go over a corner connector. It also guarantees slots never cut a post. |
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
@@ -69,8 +70,11 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Post shape: is a cylinder enough, or should it be a square or have a fillet for strength?
 - Directional or lock snaps: `openGridSnap(directional=true)` already exists upstream.
 - Device-specific cutouts or features on the board face.
+- Shallow diagonal slots exiting an edge leave a thin (but square-ended) lip between the slot and the edge, about 1.7 mm for slope 1:3. Should it be widened or removed?
+- Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-12.** Fixed sharp spikes at edge slots: ends at an edge get straight extensions (D12). Added preset `4x4-edge-slots`.
 - **2026-10-12.** Added `task setup` (OpenSCAD nightly with Manifold, and BOSL2, in `.tools/`), which is picked up automatically. Tests switched to `.echo` export because BOSL2's `cube()` override broke the old `cube(1)` placeholder under `use`.
 - **2026-10-12.** Cable slots (R6, D9–D11): `slot1..8`, `slot_r`, preset `4x4-slots`, and `tests/slots.scad`.
 - **2026-10-12.** Vendored `opengrid-snap.scad`, so the `reference/` checkout is no longer needed.
