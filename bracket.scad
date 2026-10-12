@@ -47,6 +47,9 @@ b_cut4 = [0, 0, 0];
 
 /* [Hidden] */
 pitch = 14;
+// gearplate's board edge gap: flanges reach pitch/2 - edge_gap past the screw, flush
+// with the plate edge when a cap sits on the edge hole row
+edge_gap = 0.3;
 $fs = 0.5;
 $fa = 5;
 
@@ -68,7 +71,7 @@ off = hole_off(inner_w, wall, clear);
 t = cap_hole_t(inner_h, max(0, clear - wall));
 clen = max(cap_len, wall + t + clear);
 hole_zs = [for (z = [wall + t : pitch : clen - clear]) z];
-flange_w = off + clear;
+flange_w = off + max(clear, pitch/2 - edge_gap);
 outer_w = inner_w + 2*wall;
 wall_h = in_d + wall;
 

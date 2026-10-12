@@ -41,6 +41,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D11 | A slot overlapping a corner snap is an **error** (`slot_hits_snap()` + `assert`). It checks the snap square grown by `slot_r`, which is conservative at the corners | User rule: slots never go over a corner connector. It also guarantees slots never cut a post. |
 | D13 | Seen from the end, the cap is a **hat**: outboard flanges carrying the screws, side walls up the device's depth, and a front strap across the full width. An end wall closes it off | This matches the user's sketch. Nothing sits above the screws, so the screwdriver reaches them straight down past the side walls. |
 | D14 | **Screws are snapped to the 14 mm grid in both directions.** Across the device, `hole_span()` picks the smallest multiple of 14 that keeps `driver_d/2 + driver_margin` between each side wall and its screw. Along the device, `cap_hole_t()` sets the distance from the end wall to the first screw so that cap A's and cap B's screws are a multiple of 14 apart. `cap_len` grows if a screw needs more room | Both caps land on gearplate holes. The build echoes both hole counts. |
+| D20 | Flanges reach **`pitch/2 − edge_gap` (6.7 mm) outboard of the screw** (at least `driver_d/2 + driver_margin`) | User request: a cap on the edge hole row left 2.2 mm of plate unused. Now the flange ends flush with the plate edge. `edge_gap` is shared with `gearplate.scad` |
 | D15 | The **end wall is the print base**: the cap is output lying on it, with the walls, strap and flanges rising from it | Nothing overhangs, so no supports are needed. |
 | D16 | Cutouts are **end-wall notches open from the plate side**, `[w, h, x_offset]`. The offset is seen from outside with the strap on top, + to the right. Each notch is asserted to stay inside the inner width and below the strap | For cables or ports leaving the device's end. The side walls and strap always stay whole. |
 | D17 | Caps get a **0.4 mm chamfer** (`chamfer`) on every outside edge. The parts are modelled as overlapping boxes, each shrunk by the chamfer, unioned, then `minkowski`'d with an octahedron. Screw holes get conical chamfers at both ends, and notches get hull-built chamfers on both end-wall faces and on the plate side. Inside corners stay sharp | User request. The overlap at joints (the flanges reach into the side walls) means the seams have no grooves. |
@@ -55,7 +56,7 @@ Cable slots: `slot1`…`slot8` = `[x1, y1, x2, y2]` (`[0,0,0,0]` means off), and
 Hidden: `cell` = 28, `pitch` = 14.
 
 ### `bracket.scad`
-`device_w`, `device_h`, `device_d` (60/100/25), `fit` (0.5), `wall` (3), `flange_t` (4), `cap_len` (15, the end wall included), `screw_d` (3.4), `driver_d` (7), `driver_margin` (1), `chamfer` (0.4, 0 means sharp).
+`device_w`, `device_h`, `device_d` (60/100/25), `fit` (0.5), `wall` (3), `flange_t` (4), `cap_len` (15, the end wall included), `screw_d` (3.4), `driver_d` (7), `driver_margin` (1), `chamfer` (0.4, 0 means sharp). Hidden: `edge_gap` (0.3, same as the gearplate's; sets the flange width, D20).
 Cutouts: `a_cut1..4`, `b_cut1..4` = `[w, h, x_offset]` (`[0,0,0]` means off). Presets are in `bracket.json`, with names prefixed `bracket-`.
 
 ### `assembly.scad`
@@ -93,6 +94,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-13.** Cap flanges widened to end flush with the plate edge (D20).
 - **2026-10-13.** Added `assembly.scad` (R8, D19): plate, caps and device block in one view, plus `tests/assembly.scad` and `task assembly`.
 - **2026-10-12.** Posts now use the snap outline instead of a Ø18 cylinder (D5). `post_diameter` removed.
 - **2026-10-12.** Gearplate: 0.4 mm chamfer on board edges and slot rims (D18).
