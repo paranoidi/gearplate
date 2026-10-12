@@ -17,8 +17,6 @@ cells_y = 2; // [1:20]
 board_thickness = 5;
 // Post height between board and snap in mm (0 = snap directly on board)
 post_height = 0;
-// Post diameter in mm (snap is 24.8mm wide)
-post_diameter = 18;
 // Use openGrid Lite snaps (3.4mm instead of 6.8mm)
 lite = false;
 // Heat-set insert hole diameter (M3 default); holes go through the board
@@ -47,6 +45,10 @@ slot_r = 7;
 cell = 28;
 pitch = 14;
 snap_h = lite ? 3.4 : 6.8;
+// Snap footprint and its top-plate corner (opengrid-snap.scad: w, and BOSL2 rounding
+// at $fn=2, which renders as a 45° corner cut). Posts use the same outline.
+snap_w = 24.8;
+snap_corner = 3.262743;
 $fs = 0.5;
 $fa = 5;
 // Slot ends closer than slot_r + this to an edge open out through it (no thin slivers)
@@ -79,20 +81,19 @@ function slot_segs(s, cx, cy, r) =
                  : hi < r + edge_min_wall ? 1 : 0,
              d = (dir < 0 ? lo : hi) + r + 1)
         if (dir != 0) [p, p + dir * d * (ax == 0 ? [1, 0] : [0, 1])]]);
-// True if segment a-b, swept by r, comes within reach of any snap footprint (24.8 square).
+// True if segment a-b, swept by r, comes within reach of any snap footprint (snap_w square).
 // ponytail: samples the segment every <=0.5mm and treats the snap as a square grown
 // by r, which is conservative near snap corners.
 function seg_hits_snap(a, b, cx, cy, r) =
     let (n = max(1, ceil(norm(b - a) / 0.5)))
     len([for (i = [0 : n], x = snap_pos(cx), y = snap_pos(cy))
          let (p = a + (b - a) * i / n)
-         if (max(abs(p[0] - x), abs(p[1] - y)) < 24.8/2 + r) 1]) > 0;
+         if (max(abs(p[0] - x), abs(p[1] - y)) < snap_w/2 + r) 1]) > 0;
 // True if any part of slot s = [x1,y1,x2,y2], edge extensions included, hits a snap.
 function slot_hits_snap(s, cx, cy, r) =
     len([for (g = slot_segs(s, cx, cy, r)) if (seg_hits_snap(g[0], g[1], cx, cy, r)) 1]) > 0;
 
 assert(cells_x >= 1 && cells_y >= 1, "cells must be >= 1");
-assert(post_diameter <= 24.8, "post_diameter must fit within the 24.8mm snap");
 assert(slot_r > 0, "slot_r must be > 0");
 assert(chamfer >= 0 && 2*chamfer < board_thickness, "chamfer must be >= 0 and < board_thickness/2");
 
@@ -142,7 +143,8 @@ module gearplate() {
     for (x = snap_pos(cells_x), y = snap_pos(cells_y)) translate([x, y, 0]) {
         if (post_height > 0)
             translate([0, 0, board_thickness - eps])
-                cylinder(d=post_diameter, h=post_height + 2*eps);
+                cuboid([snap_w, snap_w, post_height + 2*eps], rounding=snap_corner,
+                       edges="Z", $fn=2, anchor=BOTTOM);
         // snap top faces the board, grid-side points up
         translate([0, 0, board_thickness + post_height + snap_h/2 - eps])
             rotate([180, 0, 0]) openGridSnap(lite=lite);

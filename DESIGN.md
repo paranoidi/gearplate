@@ -32,7 +32,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D8 | The board is **5 mm** thick (`board_thickness`) | User request: 7 mm was too thick. |
 | D3 | The board measures `cells×28 − 2×edge_gap` per side (gap 0.3 mm) | Adjacent boards don't collide. |
 | D4 | Snaps are **fused** to the board and centred on the corner cells (`snap_pos()`), de-duplicated | One printed part. A 1-wide board gets 2 snaps, and a 1×1 board gets 1. |
-| D5 | The post is a cylinder, Ø18 mm by default (it must be ≤ 24.8) | It's the simplest shape that fits inside the snap's top plate. |
+| D5 | The post has the **snap's own outline**: a 24.8 mm square with the top plate's 45° corner cuts (`snap_w`, `snap_corner`; it's the same BOSL2 `cuboid(rounding=3.262743, $fn=2)` as in `opengrid-snap.scad`) | User request: the post should match the openGrid snap. It continues the snap straight down to the board, and it's stiffer than the old Ø18 cylinder. |
 | D6 | The model is output in **print orientation**: device face on the bed, snaps up | No supports are needed, and each snap prints the way a standalone snap does. |
 | D9 | Slots have **r = 7 mm (14 mm wide, one hole pitch)** and cut the board only | The slot edge falls halfway between hole rows, so neighbouring rows keep their holes with about 5 mm of wall. That's wide enough for USB-C or barrel plugs. |
 | D10 | Slot coordinates are **hole indices seen from the device face**: (0,0) is the bottom-left hole. −1 or 2×cells means "exit through that edge": the end is clamped to the edge row and extended straight out (D12) | `slot_pt()` mirrors X because print orientation flips the face. Positions are lattice-based like D1, so a slot on the same row continues across neighbouring boards. |
@@ -47,7 +47,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
-`cells_x`, `cells_y`, `board_thickness` (5), `post_height` (0), `post_diameter` (18), `lite` (false), `insert_d` (4.0), `edge_gap` (0.3).
+`cells_x`, `cells_y`, `board_thickness` (5), `post_height` (0), `lite` (false), `insert_d` (4.0), `edge_gap` (0.3).
 `chamfer` (0.4; board edges and slot rims).
 Cable slots: `slot1`…`slot8` = `[x1, y1, x2, y2]` (`[0,0,0,0]` means off), and `slot_r` (7). Indices must be integers in `-1 … 2×cells`.
 Hidden: `cell` = 28, `pitch` = 14.
@@ -87,6 +87,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-12.** Posts now use the snap outline instead of a Ø18 cylinder (D5). `post_diameter` removed.
 - **2026-10-12.** Gearplate: 0.4 mm chamfer on board edges and slot rims (D18).
 - **2026-10-12.** Caps: 0.4 mm chamfer on all outside edges, holes and notches (D17).
 - **2026-10-12.** Added device end caps (R7, D13–D16): `bracket.scad`, `bracket.json`, and `tests/bracket.scad`. The Taskfile `stl` task picks the model from whichever preset file defines the preset.
