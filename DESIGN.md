@@ -43,10 +43,12 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D15 | The **end wall is the print base**: the cap is output lying on it, with the walls, strap and flanges rising from it | Nothing overhangs, so no supports are needed. |
 | D16 | Cutouts are **end-wall notches open from the plate side**, `[w, h, x_offset]`. The offset is seen from outside with the strap on top, + to the right. Each notch is asserted to stay inside the inner width and below the strap | For cables or ports leaving the device's end. The side walls and strap always stay whole. |
 | D17 | Caps get a **0.4 mm chamfer** (`chamfer`) on every outside edge. The parts are modelled as overlapping boxes, each shrunk by the chamfer, unioned, then `minkowski`'d with an octahedron. Screw holes get conical chamfers at both ends, and notches get hull-built chamfers on both end-wall faces and on the plate side. Inside corners stay sharp | User request. The overlap at joints (the flanges reach into the side walls) means the seams have no grooves. |
+| D18 | The board gets a **0.4 mm 45° chamfer** (`chamfer`) on all outer edges, vertical corners included, and on both rims of every cable slot. The board is a hull of octahedra inset by `chamfer` (`chamfered_box()`). Each slot cutter is three separate hulls: the straight wall plus a flare at each face (`chamfered_slot()`). The snap-overlap check uses `slot_r + chamfer` | User request. A single hull over both flares would have filled the whole slot out to r + c. That happened in the first attempt, and slicing the STL caught it. Insert holes are not chamfered. |
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
 `cells_x`, `cells_y`, `board_thickness` (5), `post_height` (0), `post_diameter` (18), `lite` (false), `insert_d` (4.0), `edge_gap` (0.3).
+`chamfer` (0.4; board edges and slot rims).
 Cable slots: `slot1`…`slot8` = `[x1, y1, x2, y2]` (`[0,0,0,0]` means off), and `slot_r` (7). Indices must be integers in `-1 … 2×cells`.
 Hidden: `cell` = 28, `pitch` = 14.
 
@@ -85,6 +87,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-12.** Gearplate: 0.4 mm chamfer on board edges and slot rims (D18).
 - **2026-10-12.** Caps: 0.4 mm chamfer on all outside edges, holes and notches (D17).
 - **2026-10-12.** Added device end caps (R7, D13–D16): `bracket.scad`, `bracket.json`, and `tests/bracket.scad`. The Taskfile `stl` task picks the model from whichever preset file defines the preset.
 - **2026-10-12.** Fixed sharp spikes at edge slots: ends at an edge get straight extensions (D12). Added preset `4x4-edge-slots`.

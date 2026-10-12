@@ -25,6 +25,8 @@ lite = false;
 insert_d = 4.0;
 // Clearance per board edge so neighbouring boards don't collide
 edge_gap = 0.3;
+// 45° chamfer on board edges and cable slot rims, both faces (0 = none)
+chamfer = 0.4;
 
 /* [Cable slots] */
 // Slots are [x1, y1, x2, y2] in hole-grid indices, seen from the device face:
@@ -92,6 +94,7 @@ function slot_hits_snap(s, cx, cy, r) =
 assert(cells_x >= 1 && cells_y >= 1, "cells must be >= 1");
 assert(post_diameter <= 24.8, "post_diameter must fit within the 24.8mm snap");
 assert(slot_r > 0, "slot_r must be > 0");
+assert(chamfer >= 0 && 2*chamfer < board_thickness, "chamfer must be >= 0 and < board_thickness/2");
 
 slots = [slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8];
 for (k = [0 : len(slots) - 1]) if (slots[k] != [0, 0, 0, 0]) {
@@ -100,19 +103,41 @@ for (k = [0 : len(slots) - 1]) if (slots[k] != [0, 0, 0, 0]) {
     for (j = [0 : 3]) let (lim = 2 * (j % 2 == 0 ? cells_x : cells_y))
         assert(s[j] == round(s[j]) && s[j] >= -1 && s[j] <= lim,
                str("slot", k+1, " index ", s[j], " must be an integer in -1..", lim));
-    assert(!slot_hits_snap(s, cells_x, cells_y, slot_r), str("slot", k+1, " overlaps a corner snap"));
+    assert(!slot_hits_snap(s, cells_x, cells_y, slot_r + chamfer), str("slot", k+1, " overlaps a corner snap"));
+}
+
+// ponytail: same octahedron as bracket.scad; move both to a shared file if a third copy appears
+module octahedron(r) polyhedron([[r,0,0], [-r,0,0], [0,r,0], [0,-r,0], [0,0,r], [0,0,-r]],
+    [[4,2,0], [4,1,2], [4,3,1], [4,0,3], [5,0,2], [5,2,1], [5,1,3], [5,3,0]]);
+
+// Box with all 12 edges chamfered by c at 45°: hull of octahedra inset by c.
+module chamfered_box(size, c) {
+    if (c > 0)
+        hull() for (x = [c, size[0] - c], y = [c, size[1] - c], z = [c, size[2] - c])
+            translate([x, y, z]) octahedron(c);
+    else cube(size);
+}
+
+// Capsule cutter along segment g, radius r, through height h, with 45° flares of c at
+// both faces. Each layer is hulled on its own: one hull over both flares would fill
+// the whole capsule out to r + c.
+module chamfered_slot(g, r, h, c, eps) {
+    hull() for (p = g) translate([p[0], p[1], -eps]) cylinder(r=r, h=h + 2*eps);
+    if (c > 0) {
+        hull() for (p = g) translate([p[0], p[1], -eps]) cylinder(r1=r + c + eps, r2=r, h=c + eps);
+        hull() for (p = g) translate([p[0], p[1], h - c]) cylinder(r1=r, r2=r + c + eps, h=c + eps);
+    }
 }
 
 module gearplate() {
     eps = 0.01;
     difference() {
         translate([edge_gap, edge_gap, 0])
-            cube([cells_x*cell - 2*edge_gap, cells_y*cell - 2*edge_gap, board_thickness]);
+            chamfered_box([cells_x*cell - 2*edge_gap, cells_y*cell - 2*edge_gap, board_thickness], chamfer);
         for (x = hole_pos(cells_x), y = hole_pos(cells_y))
             translate([x, y, -eps]) cylinder(d=insert_d, h=board_thickness + 2*eps);
         for (s = slots) if (s != [0, 0, 0, 0]) for (g = slot_segs(s, cells_x, cells_y, slot_r))
-            hull() for (p = g)
-                translate([p[0], p[1], -eps]) cylinder(r=slot_r, h=board_thickness + 2*eps);
+            chamfered_slot(g, slot_r, board_thickness, chamfer, eps);
     }
     for (x = snap_pos(cells_x), y = snap_pos(cells_y)) translate([x, y, 0]) {
         if (post_height > 0)
