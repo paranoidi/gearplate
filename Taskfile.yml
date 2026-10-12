@@ -1,0 +1,52 @@
+# Build STLs from the presets in gearplate.json (OpenSCAD Customizer parameter sets).
+#   task                 all presets -> out/<preset>.stl (skips up-to-date ones)
+#   task stl P=2x3       one preset
+#   task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'
+#   task test            logic checks
+version: '3'
+
+vars:
+  OPENSCAD: '{{.OPENSCAD | default "openscad"}}'
+  PRESETS:
+    sh: jq -r '.parameterSets | keys[]' gearplate.json
+
+tasks:
+  default:
+    deps: [build]
+
+  build:
+    desc: Build all presets
+    deps:
+      - for: { var: PRESETS }
+        task: stl
+        vars: { P: '{{.ITEM}}' }
+
+  stl:
+    desc: Build one preset (P=<name>)
+    label: stl-{{.P}}
+    requires: { vars: [P] }
+    preconditions:
+      - sh: jq -e '.parameterSets["{{.P}}"]' gearplate.json >/dev/null
+        msg: 'No preset "{{.P}}" in gearplate.json'
+    method: checksum  # not timestamp: its state is per task name, shared by all presets
+    sources: [gearplate.scad, gearplate.json, reference/scad/*.scad]
+    generates: ['out/{{.P}}.stl']
+    cmds:
+      - mkdir -p out
+      - '{{.OPENSCAD}} -p gearplate.json -P {{.P}} -o out/{{.P}}.stl gearplate.scad'
+
+  custom:
+    desc: One-off build with -D overrides (ARGS, NAME)
+    cmds:
+      - mkdir -p out
+      - '{{.OPENSCAD}} {{.ARGS}} -o out/{{.NAME | default "custom"}}.stl gearplate.scad'
+
+  test:
+    desc: Run logic asserts (seam continuity, snap de-dup)
+    cmds:
+      - mkdir -p out
+      - '{{.OPENSCAD}} -o out/test.stl tests/seam.scad'
+
+  clean:
+    desc: Remove build output
+    cmds: [rm -rf out .task]

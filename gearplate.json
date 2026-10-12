@@ -1,0 +1,43 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "1x1": {
+            "cells_x": "1",
+            "cells_y": "1"
+        },
+        "2x2": {
+            "cells_x": "2",
+            "cells_y": "2"
+        },
+        "2x3": {
+            "cells_x": "2",
+            "cells_y": "3"
+        },
+        "3x2-post10": {
+            "cells_x": "3",
+            "cells_y": "2",
+            "post_height": "10"
+        },
+        "2x2-lite": {
+            "cells_x": "2",
+            "cells_y": "2",
+            "lite": "true"
+        },
+        "3x4": {
+            "cells_x": "3",
+            "cells_y": "4"
+        },
+        "4x4": {
+            "cells_x": "4",
+            "cells_y": "4"
+        },
+        "5x4": {
+            "cells_x": "5",
+            "cells_y": "4"
+        },
+        "5x5": {
+            "cells_x": "5",
+            "cells_y": "5"
+        }
+    }
+}
