@@ -42,10 +42,11 @@ tasks:
       - '{{.OPENSCAD}} {{.ARGS}} -o out/{{.NAME | default "custom"}}.stl gearplate.scad'
 
   test:
-    desc: Run logic asserts (seam continuity, snap de-dup)
+    desc: Run logic asserts (seam continuity, snap de-dup, slots)
     cmds:
       - mkdir -p out
       - '{{.OPENSCAD}} -o out/test.stl tests/seam.scad'
+      - '{{.OPENSCAD}} -o out/test.stl tests/slots.scad'
 
   clean:
     desc: Remove build output

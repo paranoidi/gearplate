@@ -21,6 +21,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 3. **R3. Corner snaps.** There is an openGrid snap at each corner of the board.
 4. **R4. Optional post.** Each snap can be raised off the board by a post. The height is in mm, and 0 means no post.
 5. **R5. Lite toggle.** Full or Lite snaps can be chosen.
+6. **R6. Cable slots.** Up to 8 rounded through-slots, each given as `x1,y1 → x2,y2` in hole-grid coordinates. Slots can sit mid-board or open out of an edge, and they must **never** overlap a corner snap.
 
 ## Current design decisions
 | # | Decision | Why |
@@ -32,10 +33,14 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D4 | Snaps are **fused** to the board and centred on the corner cells (`snap_pos()`), de-duplicated | One printed part. A 1-wide board gets 2 snaps, and a 1×1 board gets 1. |
 | D5 | The post is a cylinder, Ø18 mm by default (it must be ≤ 24.8) | It's the simplest shape that fits inside the snap's top plate. |
 | D6 | The model is output in **print orientation**: device face on the bed, snaps up | No supports are needed, and each snap prints the way a standalone snap does. |
+| D9 | Slots have **r = 7 mm (14 mm wide, one hole pitch)** and cut the board only | The slot edge falls halfway between hole rows, so neighbouring rows keep their holes with about 5 mm of wall. That's wide enough for USB-C or barrel plugs. |
+| D10 | Slot coordinates are **hole indices seen from the device face**: (0,0) is the bottom-left hole. -1 or 2×cells is one pitch past an edge, so the slot opens out of that side | `slot_pt()` mirrors X because print orientation flips the face. Positions are lattice-based like D1, so a slot on the same row continues across neighbouring boards. |
+| D11 | A slot overlapping a corner snap is an **error** (`slot_hits_snap()` + `assert`). It checks the snap square grown by `slot_r`, which is conservative at the corners | User rule: slots never go over a corner connector. It also guarantees slots never cut a post. |
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
 `cells_x`, `cells_y`, `board_thickness` (5), `post_height` (0), `post_diameter` (18), `lite` (false), `insert_d` (4.0), `edge_gap` (0.3).
+Cable slots: `slot1`…`slot8` = `[x1, y1, x2, y2]` (`[0,0,0,0]` means off), and `slot_r` (7). Indices must be integers in `-1 … 2×cells`.
 Hidden: `cell` = 28, `pitch` = 14.
 
 ## Tooling
@@ -45,13 +50,13 @@ Hidden: `cell` = 28, `pitch` = 14.
 | Build all presets | `task` writes `out/<preset>.stl`. Presets build in parallel, and ones that are already up to date are skipped. |
 | One preset | `task stl P=2x3`. An unknown preset name is an error. |
 | One-off | `task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'` |
-| Logic tests | `task test` runs `tests/seam.scad`, whose asserts check seam continuity and snap de-duplication. |
+| Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule). |
 | List tasks | `task --list` |
 
 Dependencies are OpenSCAD (2021.01 is installed), [Task](https://taskfile.dev) (go-task), `jq`, and BOSL2 in `~/.local/share/OpenSCAD/libraries/BOSL2`.
 
 ## Known issues and limits
-- **Non-manifold warning.** Each snap has 4 edges where a click nub touches the snap body along a single line. This comes from the upstream snap file, which gives the same warning when rendered on its own; the board and posts add no bad edges. Slicers normally repair it.
+- **Non-manifold warning.** Each snap has 4 edges where a click nub touches the snap body along a single line. This comes from the upstream snap file, which gives the same warning when rendered on its own. Bigger boards (4×4 and up) show a few more edges at the snap top plate, which also come from the snap model. The board, posts and slots add none. Slicers normally repair it.
 - **Slow renders.** OpenSCAD 2021.01 uses the CGAL engine, and boards take about 10–35 s each. A 2024+ nightly with `--backend=manifold` is much faster.
 - **Insert length vs. board.** A standard M3 insert is 5.7 mm long, longer than the 5 mm board. It will stick out about 0.7 mm at the back, or bottom out against the snap in the corner cells. Either use short (≤ 5 mm) inserts or don't press them fully home.
 - **Corner-cell holes are effectively blind.** The snap fully covers the 4 holes in each corner cell, and the post covers them partly.
@@ -64,6 +69,7 @@ Dependencies are OpenSCAD (2021.01 is installed), [Task](https://taskfile.dev) (
 - Device-specific cutouts or features on the board face.
 
 ## Changelog
+- **2026-10-12.** Cable slots (R6, D9–D11): `slot1..8`, `slot_r`, preset `4x4-slots`, and `tests/slots.scad`.
 - **2026-10-12.** Vendored `opengrid-snap.scad`, so the `reference/` checkout is no longer needed.
 - **2026-10-12.** Holes go through the board (`insert_depth` removed). The board is 5 mm instead of 7. Taskfile now uses `method: checksum`, because `timestamp` keeps one shared state for all presets.
 - **2026-10-12.** Initial generator covering R1–R5, plus presets, a Taskfile and the seam test.
