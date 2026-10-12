@@ -8,4 +8,3 @@ for (c = [1:6], n = [1:6]) {
 }
 for (c = [1:6]) assert(len(snap_pos(c)) == (c == 1 ? 1 : 2));
 echo("PASS seam");
-cube(1); // openscad needs geometry to export

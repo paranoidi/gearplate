@@ -51,13 +51,15 @@ Hidden: `cell` = 28, `pitch` = 14.
 | One preset | `task stl P=2x3`. An unknown preset name is an error. |
 | One-off | `task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'` |
 | Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule). |
+| Tooling | `task setup` downloads the latest OpenSCAD nightly AppImage and BOSL2 into `.tools/` (gitignored). Re-running it updates both, and it skips the download if that nightly is already installed. |
+| Engine choice | `$OPENSCAD` env if set, otherwise `.tools/openscad --backend=Manifold` if present, otherwise system `openscad`. BOSL2 comes from `.tools/libraries` (`OPENSCADPATH`) when present. A new nightly rebuilds every STL. |
 | List tasks | `task --list` |
 
-Dependencies are OpenSCAD (2021.01 is installed), [Task](https://taskfile.dev) (go-task), `jq`, and BOSL2 in `~/.local/share/OpenSCAD/libraries/BOSL2`.
+Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`. `task setup` covers OpenSCAD and BOSL2. The fallback is system OpenSCAD 2021.01 with BOSL2 in `~/.local/share/OpenSCAD/libraries/BOSL2`. Tests export to `.echo` (no geometry needed), and failed asserts are found by searching that output, because OpenSCAD exits 0 on them in that mode.
 
 ## Known issues and limits
-- **Non-manifold warning.** Each snap has 4 edges where a click nub touches the snap body along a single line. This comes from the upstream snap file, which gives the same warning when rendered on its own. Bigger boards (4×4 and up) show a few more edges at the snap top plate, which also come from the snap model. The board, posts and slots add none. Slicers normally repair it.
-- **Slow renders.** OpenSCAD 2021.01 uses the CGAL engine, and boards take about 10–35 s each. A 2024+ nightly with `--backend=manifold` is much faster.
+- **Non-manifold warning.** Each snap has 4 edges where a click nub touches the snap body along a single line. This comes from the upstream snap file, which gives the same warning when rendered on its own. With CGAL (2021.01), bigger boards (4×4 and up) also show a few more edges at the snap top plate; Manifold builds don't have those, and Manifold itself reports no errors. The board, posts and slots add none. Slicers normally repair it.
+- **Render speed.** With the nightly and Manifold (`task setup`), all 10 presets build in about 6 s. With the system 2021.01 and CGAL, the same build takes about 75 s.
 - **Insert length vs. board.** A standard M3 insert is 5.7 mm long, longer than the 5 mm board. It will stick out about 0.7 mm at the back, or bottom out against the snap in the corner cells. Either use short (≤ 5 mm) inserts or don't press them fully home.
 - **Corner-cell holes are effectively blind.** The snap fully covers the 4 holes in each corner cell, and the post covers them partly.
 - **Not yet verified by printing:** snap fit on a real grid, insert hole fit, and post strength. The tuning values are `insert_d` and `edge_gap`.
@@ -69,6 +71,7 @@ Dependencies are OpenSCAD (2021.01 is installed), [Task](https://taskfile.dev) (
 - Device-specific cutouts or features on the board face.
 
 ## Changelog
+- **2026-10-12.** Added `task setup` (OpenSCAD nightly with Manifold, and BOSL2, in `.tools/`), which is picked up automatically. Tests switched to `.echo` export because BOSL2's `cube()` override broke the old `cube(1)` placeholder under `use`.
 - **2026-10-12.** Cable slots (R6, D9–D11): `slot1..8`, `slot_r`, preset `4x4-slots`, and `tests/slots.scad`.
 - **2026-10-12.** Vendored `opengrid-snap.scad`, so the `reference/` checkout is no longer needed.
 - **2026-10-12.** Holes go through the board (`insert_depth` removed). The board is 5 mm instead of 7. Taskfile now uses `method: checksum`, because `timestamp` keeps one shared state for all presets.

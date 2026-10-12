@@ -18,4 +18,3 @@ assert(!slot_hits_snap([2, 2, 5, 5], 4, 4, 7));    // mid-board diagonal
 assert(!slot_hits_snap([2, 1, 3, 1], 4, 4, 7));
 assert(slot_hits_snap([2, 1, 3, 1], 4, 4, 10));
 echo("PASS slots");
-cube(1); // openscad needs geometry to export
