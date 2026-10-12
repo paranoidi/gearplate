@@ -42,6 +42,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D14 | **Screws are snapped to the 14 mm grid in both directions.** Across the device, `hole_span()` picks the smallest multiple of 14 that keeps `driver_d/2 + driver_margin` between each side wall and its screw. Along the device, `cap_hole_t()` sets the distance from the end wall to the first screw so that cap A's and cap B's screws are a multiple of 14 apart. `cap_len` grows if a screw needs more room | Both caps land on gearplate holes. The build echoes both hole counts. |
 | D15 | The **end wall is the print base**: the cap is output lying on it, with the walls, strap and flanges rising from it | Nothing overhangs, so no supports are needed. |
 | D16 | Cutouts are **end-wall notches open from the plate side**, `[w, h, x_offset]`. The offset is seen from outside with the strap on top, + to the right. Each notch is asserted to stay inside the inner width and below the strap | For cables or ports leaving the device's end. The side walls and strap always stay whole. |
+| D17 | Caps get a **0.4 mm chamfer** (`chamfer`) on every outside edge. The parts are modelled as overlapping boxes, each shrunk by the chamfer, unioned, then `minkowski`'d with an octahedron. Screw holes get conical chamfers at both ends, and notches get hull-built chamfers on both end-wall faces and on the plate side. Inside corners stay sharp | User request. The overlap at joints (the flanges reach into the side walls) means the seams have no grooves. |
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
@@ -50,7 +51,7 @@ Cable slots: `slot1`…`slot8` = `[x1, y1, x2, y2]` (`[0,0,0,0]` means off), and
 Hidden: `cell` = 28, `pitch` = 14.
 
 ### `bracket.scad`
-`device_w`, `device_h`, `device_d` (60/100/25), `fit` (0.5), `wall` (3), `flange_t` (4), `cap_len` (15, the end wall included), `screw_d` (3.4), `driver_d` (7), `driver_margin` (1).
+`device_w`, `device_h`, `device_d` (60/100/25), `fit` (0.5), `wall` (3), `flange_t` (4), `cap_len` (15, the end wall included), `screw_d` (3.4), `driver_d` (7), `driver_margin` (1), `chamfer` (0.4, 0 means sharp).
 Cutouts: `a_cut1..4`, `b_cut1..4` = `[w, h, x_offset]` (`[0,0,0]` means off). Presets are in `bracket.json`, with names prefixed `bracket-`.
 
 ## Tooling
@@ -84,6 +85,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-12.** Caps: 0.4 mm chamfer on all outside edges, holes and notches (D17).
 - **2026-10-12.** Added device end caps (R7, D13–D16): `bracket.scad`, `bracket.json`, and `tests/bracket.scad`. The Taskfile `stl` task picks the model from whichever preset file defines the preset.
 - **2026-10-12.** Fixed sharp spikes at edge slots: ends at an edge get straight extensions (D12). Added preset `4x4-edge-slots`.
 - **2026-10-12.** Added `task setup` (OpenSCAD nightly with Manifold, and BOSL2, in `.tools/`), which is picked up automatically. Tests switched to `.echo` export because BOSL2's `cube()` override broke the old `cube(1)` placeholder under `use`.
