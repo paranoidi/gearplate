@@ -47,6 +47,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D17 | Caps get a **0.4 mm chamfer** (`chamfer`) on every outside edge. The parts are modelled as overlapping boxes, each shrunk by the chamfer, unioned, then `minkowski`'d with an octahedron. Screw holes get conical chamfers at both ends, and notches get hull-built chamfers on both end-wall faces and on the plate side. Inside corners stay sharp | User request. The overlap at joints (the flanges reach into the side walls) means the seams have no grooves. |
 | D18 | The board gets a **0.4 mm 45° chamfer** (`chamfer`) on all outer edges, vertical corners included, and on both rims of every cable slot. The board is a hull of octahedra inset by `chamfer` (`chamfered_box()`). Each slot cutter is three separate hulls: the straight wall plus a flare at each face (`chamfered_slot()`). The snap-overlap check uses `slot_r + chamfer` | User request. A single hull over both flares would have filled the whole slot out to r + c. That happened in the first attempt, and slicing the STL caught it. Insert holes are not chamfered. |
 | D19 | The assembly **`include`s both models**. Their top-level part calls are guarded with `if (is_undef(assembly))`, so standalone builds don't change. Caps are snapped to hole indices `i0 = round((2·cells − 1 − n)/2)` (the same for rows), where n is the screw spacing in holes. That centres exactly when n is odd and lands 7 mm off when it's even. It is an error if the plate is too small | `use` would hide `-D`/Customizer overrides from the models' globals. The models share no top-level names except identical ones (`pitch`, `octahedron`) and `chamfer`, which becomes one knob for both. |
+| D21 | The assembly exports as **3MF with `--enable=lazy-union`**, one top-level statement per part | Plain export unions everything, and the parts touch, so the STL was one fused mesh that OrcaSlicer couldn't split. Lazy-union gives one 3MF object per part (plate, cap A, cap B, device). Catch: lazy-union also stops `for` from unioning, so a `for` inside `minkowski()` must be wrapped in `union()`. Otherwise every box is minkowski'd together into one big block, which is how the caps first came out. |
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
@@ -68,7 +69,7 @@ All parameters of both models apply. The defaults are `cells_x`=4 and `cells_y`=
 | Presets | `gearplate.json`, which holds OpenSCAD Customizer parameter sets. They also show up in the GUI Customizer. |
 | Build all presets | `task` writes `out/<preset>.stl`. Presets build in parallel, and ones that are already up to date are skipped. |
 | One preset | `task stl P=2x3`. An unknown preset name is an error. Bracket presets work the same way (`task stl P=bracket-example`), because the task finds which preset file defines P. `task` builds both preset files. |
-| Assembly | `task assembly` writes `out/assembly.stl` and a coloured `out/assembly.png` from `assembly.scad` with its default parameters. `task` builds it too. |
+| Assembly | `task assembly` writes `out/assembly.3mf` (one object per part) and a coloured `out/assembly.png` from `assembly.scad` with its default parameters. `task` builds it too. |
 | One-off | `task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'` |
 | Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule) `tests/bracket.scad` (cap screws on the grid both ways, screwdriver clearance) and `tests/assembly.scad` (every cap screw in the assembly lands on a plate hole). |
 | Tooling | `task setup` downloads the latest OpenSCAD nightly AppImage and BOSL2 into `.tools/` (gitignored). Re-running it updates both, and it skips the download if that nightly is already installed. |
@@ -94,6 +95,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-13.** Assembly exports as 3MF with one object per part, so slicers can separate them (D21).
 - **2026-10-13.** Cap flanges widened to end flush with the plate edge (D20).
 - **2026-10-13.** Added `assembly.scad` (R8, D19): plate, caps and device block in one view, plus `tests/assembly.scad` and `task assembly`.
 - **2026-10-12.** Posts now use the snap outline instead of a Ø18 cylinder (D5). `post_diameter` removed.

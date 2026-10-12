@@ -1,7 +1,7 @@
 # Build STLs from the presets in gearplate.json (OpenSCAD Customizer parameter sets).
 #   task                 all presets -> out/<preset>.stl (skips up-to-date ones)
 #   task stl P=2x3       one preset (from gearplate.json or bracket.json)
-#   task assembly        plate + caps + device fit check -> out/assembly.stl/.png
+#   task assembly        plate + caps + device fit check -> out/assembly.3mf/.png
 #   task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'
 #   task test            logic checks
 #   task setup           fetch latest OpenSCAD nightly + BOSL2 into .tools/ (used automatically)
@@ -57,13 +57,14 @@ tasks:
       - '{{.OPENSCAD}} -p {{.F}}.json -P {{.P}} -o out/{{.P}}.stl {{.F}}.scad'
 
   assembly:
-    desc: Build the fit-check assembly (STL, plus a coloured PNG)
+    desc: Build the fit-check assembly (3MF, one object per part, plus a coloured PNG)
     method: checksum
     sources: [assembly.scad, gearplate.scad, bracket.scad, opengrid-snap.scad, .tools/openscad.version]
-    generates: [out/assembly.stl, out/assembly.png]
+    generates: [out/assembly.3mf, out/assembly.png]
     cmds:
       - mkdir -p out
-      - '{{.OPENSCAD}} -o out/assembly.stl assembly.scad'
+      # lazy-union: no implicit top-level union, so the slicer gets separate objects
+      - '{{.OPENSCAD}} --enable=lazy-union -o out/assembly.3mf assembly.scad'
       # preview mode keeps the colours (an STL can't)
       - '{{.OPENSCAD}} -o out/assembly.png --imgsize=1000,800 --viewall --autocenter --camera=0,0,0,55,0,25,0 assembly.scad'
 

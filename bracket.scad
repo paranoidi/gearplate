@@ -109,8 +109,10 @@ module octahedron(r) polyhedron([[r,0,0], [-r,0,0], [0,r,0], [0,-r,0], [0,0,r], 
 // Union of boxes with every convex edge chamfered by `ch`: shrink each box by ch, then
 // grow back with an octahedron. Inside corners stay sharp.
 module chamfered_boxes(ch) {
+    // explicit union: under lazy-union (assembly export) a bare for would be
+    // minkowski'd box by box into one big block
     if (ch > 0) minkowski() {
-        for (b = boxes) translate(b[0] + ch*[1, 1, 1]) cube(b[1] - 2*ch*[1, 1, 1]);
+        union() for (b = boxes) translate(b[0] + ch*[1, 1, 1]) cube(b[1] - 2*ch*[1, 1, 1]);
         octahedron(ch);
     }
     else for (b = boxes) translate(b[0]) cube(b[1]);

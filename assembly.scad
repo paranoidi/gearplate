@@ -33,10 +33,9 @@ screw_xs = [hole(i0), hole(i0 + n)];
 screw_ys = concat([for (z = hole_zs) Y0 - wall + z], [for (z = hole_zs) Y0 + inner_h + wall - z]);
 
 color("silver") translate([cells_x*cell, 0, 0]) rotate([0, 180, 0]) gearplate();
-color("steelblue") {
-    // (x,y,z) -> (-x, z, y)
-    translate([X0 + inner_w, Y0 - wall, 0]) rotate([0, 0, 180]) rotate([90, 0, 0]) cap(cuts[0]);
-    // (x,y,z) -> (x, -z, y)
-    translate([X0, Y0 + inner_h + wall, 0]) rotate([90, 0, 0]) cap(cuts[1]);
-}
+// One top-level statement per part: with lazy-union each becomes its own 3MF object.
+// (x,y,z) -> (-x, z, y)
+color("steelblue") translate([X0 + inner_w, Y0 - wall, 0]) rotate([0, 0, 180]) rotate([90, 0, 0]) cap(cuts[0]);
+// (x,y,z) -> (x, -z, y)
+color("steelblue") translate([X0, Y0 + inner_h + wall, 0]) rotate([90, 0, 0]) cap(cuts[1]);
 color("orange", 0.8) translate([X0 + fit, Y0 + fit/2, 0]) cube([device_w, device_h, device_d]);
