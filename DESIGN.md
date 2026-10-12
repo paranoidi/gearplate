@@ -10,8 +10,8 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 ## openGrid facts we rely on
 | Fact | Value | Source |
 |---|---|---|
-| Cell pitch | 28 mm | openGrid spec, `reference/scad/snap-mount-generator.scad` |
-| Snap footprint | 24.8 × 24.8 mm | `reference/scad/opengrid-snap.scad` (`w`) |
+| Cell pitch | 28 mm | openGrid spec |
+| Snap footprint | 24.8 × 24.8 mm | `opengrid-snap.scad` (`w`) |
 | Snap height, Full / Lite | 6.8 / 3.4 mm | same (`fulldiff`) |
 | Snap orientation | Thin top plate (`+Z`) bonds to the part; the click nubs (`−Z`) go into the grid | same |
 
@@ -32,7 +32,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D4 | Snaps are **fused** to the board and centred on the corner cells (`snap_pos()`), de-duplicated | One printed part. A 1-wide board gets 2 snaps, and a 1×1 board gets 1. |
 | D5 | The post is a cylinder, Ø18 mm by default (it must be ≤ 24.8) | It's the simplest shape that fits inside the snap's top plate. |
 | D6 | The model is output in **print orientation**: device face on the bed, snaps up | No supports are needed, and each snap prints the way a standalone snap does. |
-| D7 | The snap geometry is **reused, not remodelled**, via `include <reference/scad/opengrid-snap.scad>` | It's an existing, accurate model (by David D / metasyntactic). |
+| D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
 `cells_x`, `cells_y`, `board_thickness` (5), `post_height` (0), `post_diameter` (18), `lite` (false), `insert_d` (4.0), `edge_gap` (0.3).
@@ -64,5 +64,6 @@ Dependencies are OpenSCAD (2021.01 is installed), [Task](https://taskfile.dev) (
 - Device-specific cutouts or features on the board face.
 
 ## Changelog
+- **2026-10-12.** Vendored `opengrid-snap.scad`, so the `reference/` checkout is no longer needed.
 - **2026-10-12.** Holes go through the board (`insert_depth` removed). The board is 5 mm instead of 7. Taskfile now uses `method: checksum`, because `timestamp` keeps one shared state for all presets.
 - **2026-10-12.** Initial generator covering R1–R5, plus presets, a Taskfile and the seam test.

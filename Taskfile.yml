@@ -29,7 +29,7 @@ tasks:
       - sh: jq -e '.parameterSets["{{.P}}"]' gearplate.json >/dev/null
         msg: 'No preset "{{.P}}" in gearplate.json'
     method: checksum  # not timestamp: its state is per task name, shared by all presets
-    sources: [gearplate.scad, gearplate.json, reference/scad/*.scad]
+    sources: [gearplate.scad, gearplate.json, opengrid-snap.scad]
     generates: ['out/{{.P}}.stl']
     cmds:
       - mkdir -p out

@@ -2,12 +2,12 @@
 // A board with heat-set insert holes on a 14mm pitch that stays continuous across
 // adjacent boards, with an openGrid snap (optionally on a post) at each corner cell.
 //
-// Snap geometry: reference/scad/opengrid-snap.scad
+// Snap geometry: opengrid-snap.scad (vendored)
 // (openGrid by David D, OpenSCAD by metasyntactic, CC-BY-NC-SA 4.0). Requires BOSL2.
 //
 // Output is in print orientation: device face (insert openings) on the bed, snaps up.
 
-include <reference/scad/opengrid-snap.scad>
+include <opengrid-snap.scad>
 
 // Board width in openGrid cells
 cells_x = 2; // [1:20]
