@@ -1,0 +1,17 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "stacking": {
+            "lite": "false"
+        },
+        "stacking-lite": {
+            "lite": "true"
+        },
+        "stacking-counterbore": {
+            "head_type": "counterbore",
+            "head_d": "6",
+            "head_h": "3.2",
+            "floor_thickness": "5"
+        }
+    }
+}

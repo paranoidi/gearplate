@@ -24,6 +24,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 6. **R6. Cable slots.** Up to 8 rounded through-slots, each given as `x1,y1 → x2,y2` in hole-grid coordinates. Slots can sit mid-board or open out of an edge, and they must **never** overlap a corner snap.
 7. **R7. Device end caps** (`bracket.scad`). This is a pair of caps, one over each end of a box-shaped device, sized from `device_w/h/d`. Each cap screws onto the hole grid. Screws need room for a screwdriver plus a margin. The end wall is the lip at the cap's edge, and the cap prints lying on it with no supports. Each cap has its own end-wall notches, given as width, height and x offset, where 0 means centred.
 8. **R8. Assembly view** (`assembly.scad`). One preview shows a plate, both end caps screwed onto real plate holes, and the device as a block, roughly centred on the plate. It is a fit check, not a printable part.
+9. **R9. Stacking piece** (`stacking.scad`). This is a 1×1 openGrid tile on a solid floor with 4 screw holes on the gearplate hole pattern, either countersunk or counterbored. You screw it onto a gearplate's face (into its inserts), and the next gearplate's corner snaps or posts click into it, so gearplates can be stacked. The screw head type and size are parametric, and they default to M3 countersunk. The outer edges are chamfered like the rest of the project.
 
 ## Current design decisions
 | # | Decision | Why |
@@ -48,6 +49,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D18 | The board gets a **0.4 mm 45° chamfer** (`chamfer`) on all outer edges, vertical corners included, and on both rims of every cable slot. The board is a hull of octahedra inset by `chamfer` (`chamfered_box()`). Each slot cutter is three separate hulls: the straight wall plus a flare at each face (`chamfered_slot()`). The snap-overlap check uses `slot_r + chamfer` | User request. A single hull over both flares would have filled the whole slot out to r + c. That happened in the first attempt, and slicing the STL caught it. Insert holes are not chamfered. |
 | D19 | The assembly **`include`s both models**. Their top-level part calls are guarded with `if (is_undef(assembly))`, so standalone builds don't change. Caps are snapped to hole indices `i0 = round((2·cells − 1 − n)/2)` (the same for rows), where n is the screw spacing in holes. That centres exactly when n is odd and lands 7 mm off when it's even. It is an error if the plate is too small | `use` would hide `-D`/Customizer overrides from the models' globals. The models share no top-level names except identical ones (`pitch`, `octahedron`) and `chamfer`, which becomes one knob for both. |
 | D21 | The assembly exports as **3MF with `--enable=lazy-union`**, one top-level statement per part | Plain export unions everything, and the parts touch, so the STL was one fused mesh that OrcaSlicer couldn't split. Lazy-union gives one 3MF object per part (plate, cap A, cap B, device). Catch: lazy-union also stops `for` from unioning, so a `for` inside `minkowski()` must be wrapped in `union()`. Otherwise every box is minkowski'd together into one big block, which is how the caps first came out. |
+| D22 | The stacking piece **reuses the QuackWorks openGrid tile**, vendored unmodified as `opengrid-tile.scad` (AndyLevesque/QuackWorks `openGrid/openGrid.scad` @ aeac2d3) and pulled in with `use`, so its own demo tile doesn't render. It sits on a `floor_thickness` floor. Both are clipped to `cell − 2·edge_gap` (D3). Holes sit at ±7 from the centre (D1). `head_type` picks the recess: `countersunk` is a cone from `head_d` at the floor top down to `screw_d` at depth `head_h`, and `counterbore` is a flat-bottomed Ø`head_d` × `head_h` bore. Either way the heads are flush and don't foul the snap that fills the cell. The tile corners are left square to match the floor. The edge_gap clip is `chamfered_box()` from `gearplate.scad` (`use`d), so all 12 outer edges get the 0.4 mm `chamfer` (D18) in the same intersection. An `assert` checks that the head clears the tile's corner blocks (reach 5.57 mm along the diagonal) | Accurate grid geometry for free. `stacking.scad` must `include <BOSL2/std.scad>` itself, because the `$`-globals of a `use`d file stay hidden and BOSL2 attachments fail without them. |
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
@@ -63,15 +65,18 @@ Cutouts: `a_cut1..4`, `b_cut1..4` = `[w, h, x_offset]` (`[0,0,0]` means off). Pr
 ### `assembly.scad`
 All parameters of both models apply. The defaults are `cells_x`=4 and `cells_y`=5, so the default 60×100 device fits. The frame has the device face at z=0, X across the device and Y along it. Open it in the GUI and preview (F5) to see the colours.
 
+### `stacking.scad`
+`lite` (false), `floor_thickness` (3.5), `screw_d` (3.4), `head_type` (`countersunk` or `counterbore`), `head_d` (6.8, M3 ISO 10642 dk 6.72), `head_h` (1.9, k 1.86), `edge_gap` (0.3), `chamfer` (0.4, 0 means sharp). Presets are in `stacking.json`: `stacking`, `stacking-lite`, and `stacking-counterbore` (M3 socket head ISO 4762: `head_d` 6, `head_h` 3.2, `floor_thickness` 5).
+
 ## Tooling
 | What | How |
 |---|---|
 | Presets | `gearplate.json`, which holds OpenSCAD Customizer parameter sets. They also show up in the GUI Customizer. |
 | Build all presets | `task` writes `out/<preset>.stl`. Presets build in parallel, and ones that are already up to date are skipped. |
-| One preset | `task stl P=2x3`. An unknown preset name is an error. Bracket presets work the same way (`task stl P=bracket-example`), because the task finds which preset file defines P. `task` builds both preset files. |
+| One preset | `task stl P=2x3`. An unknown preset name is an error. Bracket and stacking presets work the same way (`task stl P=bracket-example`, `task stl P=stacking`), because the task finds which preset file defines P. `task` builds all three preset files. |
 | Assembly | `task assembly` writes `out/assembly.3mf` (one object per part) and a coloured `out/assembly.png` from `assembly.scad` with its default parameters. `task` builds it too. |
 | One-off | `task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'` |
-| Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule) `tests/bracket.scad` (cap screws on the grid both ways, screwdriver clearance) and `tests/assembly.scad` (every cap screw in the assembly lands on a plate hole). |
+| Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule) `tests/bracket.scad` (cap screws on the grid both ways, screwdriver clearance) `tests/assembly.scad` (every cap screw in the assembly lands on a plate hole) and `tests/stacking.scad` (stacking holes land on gearplate holes, and the head clears the tile corners). |
 | Tooling | `task setup` downloads the latest OpenSCAD nightly AppImage and BOSL2 into `.tools/` (gitignored). Re-running it updates both, and it skips the download if that nightly is already installed. |
 | Engine choice | `$OPENSCAD` env if set, otherwise `.tools/openscad --backend=Manifold` if present, otherwise system `openscad`. BOSL2 comes from `.tools/libraries` (`OPENSCADPATH`) when present. A new nightly rebuilds every STL. |
 | List tasks | `task --list` |
@@ -83,6 +88,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - **Render speed.** With the nightly and Manifold (`task setup`), all 10 presets build in about 6 s. With the system 2021.01 and CGAL, the same build takes about 75 s.
 - **Insert length vs. board.** A standard M3 insert is 5.7 mm long, longer than the 5 mm board. It will stick out about 0.7 mm at the back, or bottom out against the snap in the corner cells. Either use short (≤ 5 mm) inserts or don't press them fully home.
 - **Corner-cell holes are effectively blind.** The snap fully covers the 4 holes in each corner cell, and the post covers them partly.
+- **Stacking piece not yet verified by printing.** Snap fit on the floored tile, flush heads, and whether the corner-cell inserts of the lower plate hold (they can bottom out against its snap, see above) are all untested.
 - **End caps not yet verified by printing.** Fit (`fit`), how firmly the caps hold the device, and whether the M3 screw heads fit in the `driver_d` clearance are all untested.
 - **Not yet verified by printing:** snap fit on a real grid, insert hole fit, and post strength. The tuning values are `insert_d` and `edge_gap`.
 
@@ -95,6 +101,8 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-13.** Stacking piece: counterbore option (`head_type`, preset `stacking-counterbore`) and a 0.4 mm chamfer on all outer edges (D22).
+- **2026-10-13.** Added the stacking piece (R9, D22): `stacking.scad`, `stacking.json`, vendored `opengrid-tile.scad`, and `tests/stacking.scad`.
 - **2026-10-13.** Assembly exports as 3MF with one object per part, so slicers can separate them (D21).
 - **2026-10-13.** Cap flanges widened to end flush with the plate edge (D20).
 - **2026-10-13.** Added `assembly.scad` (R8, D19): plate, caps and device block in one view, plus `tests/assembly.scad` and `task assembly`.
