@@ -2,3 +2,7 @@ out/
 .task/
 reference/
 .tools/
+devices/*/*.stl
+devices/*/*.3mf
+devices/*/*.png
+devices/*/*.echo

@@ -2,6 +2,8 @@
 #   task                 all presets -> out/<preset>.stl (skips up-to-date ones)
 #   task stl P=2x3       one preset (from gearplate.json, bracket.json or stacking.json)
 #   task assembly        plate + caps + device fit check -> out/assembly.3mf/.png
+#   task fit             interactive: name a device, enter size + cap cutouts -> devices/<name>/
+#   task device D=switch rebuild one device from devices/switch/switch.json (hand-editable)
 #   task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'
 #   task test            logic checks
 #   task setup           fetch latest OpenSCAD nightly + BOSL2 into .tools/ (used automatically)
@@ -20,6 +22,8 @@ vars:
     sh: jq -r '.parameterSets | keys[]' bracket.json
   STACKING_PRESETS:
     sh: jq -r '.parameterSets | keys[]' stacking.json
+  DEVICES:
+    sh: ls devices 2>/dev/null || true
 
 env:
   # searched before the user library dir, so .tools BOSL2 wins when present
@@ -41,6 +45,9 @@ tasks:
       - for: { var: STACKING_PRESETS }
         task: stl
         vars: { P: '{{.ITEM}}' }
+      - for: { var: DEVICES }
+        task: device
+        vars: { D: '{{.ITEM}}' }
       - assembly
 
   stl:
@@ -75,6 +82,81 @@ tasks:
       - '{{.OPENSCAD}} --enable=lazy-union -o out/assembly.3mf assembly.scad'
       # preview mode keeps the colours (an STL can't)
       - '{{.OPENSCAD}} -o out/assembly.png --imgsize=1000,800 --viewall --autocenter --camera=0,0,0,55,0,25,0 assembly.scad'
+
+  fit:
+    desc: 'Interactive: name a device, enter its size and cap cutouts, build its smallest assembly'
+    interactive: true
+    silent: true
+    cmds:
+      - |
+        printf 'Device name (e.g. switch): '; read -r name
+        echo "$name" | grep -qE '^[A-Za-z0-9_-]+$' || { echo "name must be letters, digits, - or _" >&2; exit 1; }
+        f=devices/$name/$name.json
+        if [ -f "$f" ]; then echo "Editing $f (Enter keeps the value in brackets)"; fi
+        # stored answer for key $1, else default $2
+        get() { v=; if [ -f "$f" ]; then v=$(jq -r --arg n "$name" --arg k "$1" '.parameterSets[$n][$k] // empty' "$f"); fi; echo "${v:-$2}"; }
+        ask() { d=$(get "$1" "$2"); printf '%s [%s]: ' "$3" "$d" >&2; read -r v; echo "${v:-$d}"; }
+        num() { echo "$1" | grep -qE '^[0-9]+(\.[0-9]+)?$' || { echo "not a number: $1" >&2; exit 1; }; }
+        w=$(ask device_w 60 'Device width mm'); num "$w"
+        h=$(ask device_h 100 'Device height mm (between the caps)'); num "$h"
+        d=$(ask device_d 25 'Device depth mm (plate to front)'); num "$d"
+        echo 'End-wall cutouts as w,h,x (x: 0 = centred, + = right seen from outside, strap on top).'
+        echo 'Blank line = keep shown value / no more cutouts, - = remove.'
+        for cap in a b; do
+          more=1
+          for k in 1 2 3 4; do
+            cur=$(get ${cap}_cut$k '[0, 0, 0]' | tr -d '[] ')
+            if [ "$cur" = 0,0,0 ]; then cur=; fi
+            c=
+            if [ -n "$cur" ] || [ $more = 1 ]; then
+              printf 'Cap %s cutout %s [%s]: ' $(echo $cap | tr ab AB) $k "$cur"; read -r c
+              c=$(echo "${c:-$cur}" | tr -d '[] ')
+              if [ -z "$c" ]; then more=0; fi
+              if [ "$c" = - ]; then c=; fi
+            fi
+            if [ -n "$c" ]; then
+              echo "$c" | grep -qE '^[0-9.]+,[0-9.]+,-?[0-9.]+$' || { echo "cutout must be w,h,x: $c" >&2; exit 1; }
+              c="[$(echo "$c" | sed 's/,/, /g')]"
+            else c='[0, 0, 0]'; fi
+            eval ${cap}$k='$c'
+          done
+        done
+        mkdir -p devices/$name
+        jq -n --arg n "$name" --arg w "$w" --arg h "$h" --arg d "$d" \
+          --arg a1 "$a1" --arg a2 "$a2" --arg a3 "$a3" --arg a4 "$a4" \
+          --arg b1 "$b1" --arg b2 "$b2" --arg b3 "$b3" --arg b4 "$b4" \
+          '{fileFormatVersion: "1", parameterSets: {($n): {device_w: $w, device_h: $h, device_d: $d,
+            a_cut1: $a1, a_cut2: $a2, a_cut3: $a3, a_cut4: $a4, b_cut1: $b1, b_cut2: $b2, b_cut3: $b3, b_cut4: $b4}}}' > "$f"
+        echo "Saved $f"
+        "{{.TASK_EXE}}" device D="$name"
+
+  device:
+    desc: Build one device (D=<name>) from devices/<name>/<name>.json into that directory
+    label: device-{{.D}}
+    requires: { vars: [D] }
+    vars:
+      DIR: devices/{{.D}}
+      F: devices/{{.D}}/{{.D}}.json
+      # answers as -D overrides: -p only sets the main file's own parameters, and the
+      # device ones live in bracket.scad, which assembly.scad includes
+      ARGS:
+        sh: "[ -f {{.F}} ] && jq -r --arg n {{.D}} '.parameterSets[$n] | to_entries | map(\"-D\", \"\\(.key)=\\(.value)\") | @sh' {{.F}} || true"
+    preconditions:
+      - sh: '[ -f {{.F}} ]'
+        msg: 'No {{.F}}; create it with task fit'
+    method: checksum
+    sources: ['{{.F}}', assembly.scad, gearplate.scad, bracket.scad, opengrid-snap.scad, .tools/openscad.version]
+    generates: ['{{.DIR}}/assembly.3mf', '{{.DIR}}/assembly.png', '{{.DIR}}/plate.stl', '{{.DIR}}/caps.stl']
+    cmds:
+      # .echo first: fast, and shows the chosen plate size or a failed assert before rendering
+      - |
+        {{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/assembly.echo assembly.scad 2>/dev/null
+        grep -E 'Assembly:|ERROR|WARNING' {{.DIR}}/assembly.echo
+        ! grep -qE 'ERROR|WARNING' {{.DIR}}/assembly.echo
+      - '{{.OPENSCAD}} {{.ARGS}} --enable=lazy-union -o {{.DIR}}/assembly.3mf assembly.scad'
+      - '{{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/assembly.png --imgsize=1000,800 --viewall --autocenter --camera=0,0,0,55,0,25,0 assembly.scad'
+      - '{{.OPENSCAD}} {{.ARGS}} -D ''part="plate"'' -o {{.DIR}}/plate.stl assembly.scad'
+      - '{{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/caps.stl bracket.scad'
 
   custom:
     desc: One-off build with -D overrides (ARGS, NAME)
