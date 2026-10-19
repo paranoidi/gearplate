@@ -23,7 +23,7 @@ lite = false;
 insert_d = 4.0;
 // Clearance per board edge so neighbouring boards don't collide
 edge_gap = 0.3;
-// 45° chamfer on board edges and cable slot rims, both faces (0 = none)
+// 45° chamfer on board edges, cable slot rims (both faces) and insert holes (device face) (0 = none)
 chamfer = 0.4;
 
 /* [Cable slots] */
@@ -135,8 +135,11 @@ module gearplate() {
     difference() {
         translate([edge_gap, edge_gap, 0])
             chamfered_box([cells_x*cell - 2*edge_gap, cells_y*cell - 2*edge_gap, board_thickness], chamfer);
-        for (x = hole_pos(cells_x), y = hole_pos(cells_y))
-            translate([x, y, -eps]) cylinder(d=insert_d, h=board_thickness + 2*eps);
+        // insert holes, chamfered at the device face only (the snap side stays sharp)
+        for (x = hole_pos(cells_x), y = hole_pos(cells_y)) translate([x, y, -eps]) {
+            cylinder(d=insert_d, h=board_thickness + 2*eps);
+            if (chamfer > 0) cylinder(r1=insert_d/2 + chamfer + eps, r2=insert_d/2, h=chamfer + eps);
+        }
         for (s = slots) if (s != [0, 0, 0, 0]) for (g = slot_segs(s, cells_x, cells_y, slot_r))
             chamfered_slot(g, slot_r, board_thickness, chamfer, eps);
     }
