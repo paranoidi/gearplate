@@ -59,24 +59,29 @@ $fa = 5;
 function hole_span(inner_w, wall, clear) = pitch * ceil((inner_w + 2*wall + 2*clear) / pitch);
 // Side wall outer face -> screw centre.
 function hole_off(inner_w, wall, clear) = (hole_span(inner_w, wall, clear) - inner_w) / 2 - wall;
-// End wall inner face -> first screw, >= t_min, chosen so cap A's and cap B's screws
-// are a multiple of the pitch apart along the device.
-function cap_hole_t(inner_h, t_min) = (inner_h - pitch * floor((inner_h - 2*t_min) / pitch)) / 2;
+// End wall inner face -> first screw, [cap A, cap B], each >= t_min. Cap A's end wall
+// reaches pitch/2 - edge_gap past its screw (+ whole pitches), so it can sit flush with
+// the plate edge like the flanges (D20); cap B takes the rest, keeping the two screw
+// rows a multiple of the pitch apart.
+function cap_hole_t(inner_h, wall, t_min) =
+    let (t0 = pitch/2 - edge_gap - wall, ta = t0 + pitch * max(0, ceil((t_min - t0) / pitch - 1e-9)))
+    [ta, inner_h - ta - pitch * floor((inner_h - ta - t_min) / pitch + 1e-9)];
 
 clear = driver_d/2 + driver_margin;
 inner_w = device_w + 2*fit;
 in_d = device_d + fit;
 inner_h = device_h + fit;
 off = hole_off(inner_w, wall, clear);
-t = cap_hole_t(inner_h, max(0, clear - wall));
-clen = max(cap_len, wall + t + clear);
-hole_zs = [for (z = [wall + t : pitch : clen - clear]) z];
+t_min = max(0, clear - wall);
+t = cap_hole_t(inner_h, wall, t_min);
+clen = [for (tt = t) max(cap_len, wall + tt + clear)];
+hole_zs = [for (b = [0, 1]) [for (z = [wall + t[b] : pitch : clen[b] - clear]) z]];
 flange_w = off + max(clear, pitch/2 - edge_gap);
 outer_w = inner_w + 2*wall;
 wall_h = in_d + wall;
 
 assert(device_w > 0 && device_h > 0 && device_d > 0, "device dimensions must be > 0");
-assert(inner_h >= 2*max(0, clear - wall), "device_h too small for the screw spacing");
+assert(inner_h >= t[0] + t_min, "device_h too small for the screw spacing");
 assert(chamfer >= 0 && chamfer < min(wall, flange_t) / 2, "chamfer must be >= 0 and < half the wall/flange");
 
 cuts = [[a_cut1, a_cut2, a_cut3, a_cut4], [b_cut1, b_cut2, b_cut3, b_cut4]];
@@ -88,13 +93,13 @@ for (b = [0, 1], k = [0 : 3]) let (c = cuts[b][k], name = str(b ? "b" : "a", "_c
     }
 
 echo(str("Cap hole rows are ", hole_span(inner_w, wall, clear) / pitch, " holes apart across; ",
-         "cap A and cap B screws are ", (inner_h - 2*t) / pitch, " holes apart along the device"));
+         "cap A and cap B screws are ", (inner_h - t[0] - t[1]) / pitch, " holes apart along the device"));
 
 // x across the device (0 = inner face of the left side wall), y up from the plate,
 // z along the device from the end wall's outer face (print bed).
 // Boxes [origin, size]. They overlap at joints (flanges reach into the side walls), so
 // every face is either outside or buried and the chamfer leaves no grooves at seams.
-boxes = [
+function boxes(clen) = [
     [[-wall, 0, 0], [outer_w, wall_h, wall]],                                  // end wall
     [[-wall, 0, 0], [wall, wall_h, clen]],                                     // side walls
     [[inner_w, 0, 0], [wall, wall_h, clen]],
@@ -108,23 +113,25 @@ module octahedron(r) polyhedron([[r,0,0], [-r,0,0], [0,r,0], [0,-r,0], [0,0,r], 
 
 // Union of boxes with every convex edge chamfered by `ch`: shrink each box by ch, then
 // grow back with an octahedron. Inside corners stay sharp.
-module chamfered_boxes(ch) {
+module chamfered_boxes(ch, clen) {
     // explicit union: under lazy-union (assembly export) a bare for would be
     // minkowski'd box by box into one big block
     if (ch > 0) minkowski() {
-        union() for (b = boxes) translate(b[0] + ch*[1, 1, 1]) cube(b[1] - 2*ch*[1, 1, 1]);
+        union() for (b = boxes(clen)) translate(b[0] + ch*[1, 1, 1]) cube(b[1] - 2*ch*[1, 1, 1]);
         octahedron(ch);
     }
-    else for (b = boxes) translate(b[0]) cube(b[1]);
+    else for (b = boxes(clen)) translate(b[0]) cube(b[1]);
 }
 
-module cap(cutouts) {
+// b: 0 = cap A, 1 = cap B
+module cap(b) {
+    cutouts = cuts[b];
     eps = 0.01;
     ch = chamfer;
     difference() {
-        chamfered_boxes(ch);
+        chamfered_boxes(ch, clen[b]);
         // screw holes, chamfered at both ends
-        for (x = [-wall - off, inner_w + wall + off], z = hole_zs) translate([x, 0, z]) rotate([-90, 0, 0]) {
+        for (x = [-wall - off, inner_w + wall + off], z = hole_zs[b]) translate([x, 0, z]) rotate([-90, 0, 0]) {
             translate([0, 0, -eps]) cylinder(d=screw_d, h=flange_t + 2*eps);
             translate([0, 0, -eps]) cylinder(d1=screw_d + 2*(ch + eps), d2=screw_d, h=ch + eps);
             translate([0, 0, flange_t - ch]) cylinder(d1=screw_d, d2=screw_d + 2*(ch + eps), h=ch + eps);
@@ -147,6 +154,6 @@ module cap(cutouts) {
 }
 
 if (is_undef(assembly)) {  // assembly.scad places them itself
-    cap(cuts[0]);
-    translate([outer_w + 2*flange_w + 5, 0, 0]) cap(cuts[1]);
+    cap(0);
+    translate([outer_w + 2*flange_w + 5, 0, 0]) cap(1);
 }

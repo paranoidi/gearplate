@@ -1,0 +1,18 @@
+{
+  "fileFormatVersion": "1",
+  "parameterSets": {
+    "cloudkey": {
+      "device_w": "48",
+      "device_h": "120",
+      "device_d": "28.5",
+      "a_cut1": "[40, 24, 0]",
+      "a_cut2": "[0, 0, 0]",
+      "a_cut3": "[0, 0, 0]",
+      "a_cut4": "[0, 0, 0]",
+      "b_cut1": "[40, 24, 0]",
+      "b_cut2": "[0, 0, 0]",
+      "b_cut3": "[0, 0, 0]",
+      "b_cut4": "[0, 0, 0]"
+    }
+  }
+}
