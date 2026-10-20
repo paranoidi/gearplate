@@ -9,9 +9,9 @@
             "cells_x": "2",
             "cells_y": "3"
         },
-        "3x2-underware": {
-            "cells_x": "3",
-            "cells_y": "2",
+        "6x4-underware": {
+            "cells_x": "6",
+            "cells_y": "4",
             "post_height": "20"
         },
         "2x2-lite": {

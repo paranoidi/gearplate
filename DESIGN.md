@@ -2,7 +2,7 @@
 
 > **Living document.** This file records the current understanding of the design, and it gets updated whenever a feature is refined. If the code and this file disagree, fix one of them in the same change.
 >
-> Last updated: 2026-10-20
+> Last updated: 2026-10-21
 
 ## Purpose
 A parametric OpenSCAD generator for **device mounting boards for openGrid**. A device is screwed onto the board's face using heat-set inserts. The board snaps onto an openGrid wall through snaps at its corners.
@@ -87,6 +87,7 @@ All parameters of both models apply. `cells_x`/`cells_y` default to the smallest
 | Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule) `tests/bracket.scad` (cap screws on the grid both ways, screwdriver clearance) `tests/assembly.scad` (every cap screw in the assembly lands on a plate hole, the cap footprint stays on the plate, and the plate is minimal) `tests/stacking.scad` (stacking holes land on gearplate holes, and the head clears the tile corners) and `tests/snap.scad` (snap holes land on gearplate holes). |
 | Tooling | `task setup` downloads the latest OpenSCAD nightly AppImage and BOSL2 into `.tools/` (gitignored). Re-running it updates both, and it skips the download if that nightly is already installed. |
 | Engine choice | `$OPENSCAD` env if set, otherwise `.tools/openscad --backend=Manifold` if present, otherwise system `openscad`. BOSL2 comes from `.tools/libraries` (`OPENSCADPATH`) when present. A new nightly rebuilds every STL. |
+| README pictures | `task images` renders `docs/*.png` (one per part type plus the assembly). They're tracked, so re-run it after changing geometry. |
 | List tasks | `task --list` |
 
 Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`. `task setup` covers OpenSCAD and BOSL2. The fallback is system OpenSCAD 2021.01 with BOSL2 in `~/.local/share/OpenSCAD/libraries/BOSL2`. Tests export to `.echo` (no geometry needed), and failed asserts are found by searching that output, because OpenSCAD exits 0 on them in that mode.
@@ -110,6 +111,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-21.** Added `README.md`, `LICENSE` (CC BY-NC-SA 4.0, required by the vendored code) and `task images`.
 - **2026-10-20.** Added the holed snap (R11, D24): `snap.scad`, `snap.json` and `tests/snap.scad`.
 - **2026-10-20.** Caps along the device are asymmetric (D14): cap A's end wall can sit flush on the plate edge, so plates are up to a cell shorter (cloudkey 3×6 → 3×5, default device 4×5 → 4×4).
 - **2026-10-13.** Gearplate insert holes: 0.4 mm chamfer on the device face (D18).

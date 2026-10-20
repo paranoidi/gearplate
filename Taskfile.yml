@@ -170,6 +170,18 @@ tasks:
       - mkdir -p out
       - '{{.OPENSCAD}} {{.ARGS}} -o out/{{.NAME | default "custom"}}.stl gearplate.scad'
 
+  images:
+    desc: Render the README pictures into docs/
+    cmds:
+      - mkdir -p docs
+      - |
+        for fp in gearplate:4x4-mixed-slots gearplate:6x4-underware bracket:bracket-example stacking:stacking snap:snap; do
+          f=${fp%%:*} p=${fp#*:}
+          {{.OPENSCAD}} -p $f.json -P $p --render --imgsize=800,600 --viewall --autocenter --colorscheme=Tomorrow -o docs/$p.png $f.scad
+        done
+      # preview mode keeps the part colours
+      - '{{.OPENSCAD}} --imgsize=800,600 --viewall --autocenter --camera=0,0,0,55,0,25,0 --colorscheme=Tomorrow -o docs/assembly.png assembly.scad'
+
   test:
     desc: Run logic asserts (seam continuity, snap de-dup, slots, bracket grid, assembly, stacking, snap)
     silent: true
