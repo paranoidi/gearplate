@@ -1,6 +1,6 @@
 # Build STLs from the presets in gearplate.json (OpenSCAD Customizer parameter sets).
 #   task                 all presets -> out/<preset>.stl (skips up-to-date ones)
-#   task stl P=2x3       one preset (from gearplate.json, bracket.json or stacking.json)
+#   task stl P=2x3       one preset (from gearplate.json, bracket.json, stacking.json or snap.json)
 #   task assembly        plate + caps + device fit check -> out/assembly.3mf/.png
 #   task fit             interactive: name a device, enter size + cap cutouts -> devices/<name>/
 #   task device D=switch rebuild one device from devices/switch/switch.json (hand-editable)
@@ -22,6 +22,8 @@ vars:
     sh: jq -r '.parameterSets | keys[]' bracket.json
   STACKING_PRESETS:
     sh: jq -r '.parameterSets | keys[]' stacking.json
+  SNAP_PRESETS:
+    sh: jq -r '.parameterSets | keys[]' snap.json
   DEVICES:
     sh: ls devices 2>/dev/null || true
 
@@ -45,6 +47,9 @@ tasks:
       - for: { var: STACKING_PRESETS }
         task: stl
         vars: { P: '{{.ITEM}}' }
+      - for: { var: SNAP_PRESETS }
+        task: stl
+        vars: { P: '{{.ITEM}}' }
       - for: { var: DEVICES }
         task: device
         vars: { D: '{{.ITEM}}' }
@@ -60,10 +65,11 @@ tasks:
         sh: |
           if jq -e '.parameterSets["{{.P}}"]' bracket.json >/dev/null; then echo bracket
           elif jq -e '.parameterSets["{{.P}}"]' stacking.json >/dev/null; then echo stacking
+          elif jq -e '.parameterSets["{{.P}}"]' snap.json >/dev/null; then echo snap
           else echo gearplate; fi
     preconditions:
       - sh: jq -e '.parameterSets["{{.P}}"]' {{.F}}.json >/dev/null
-        msg: 'No preset "{{.P}}" in gearplate.json, bracket.json or stacking.json'
+        msg: 'No preset "{{.P}}" in gearplate.json, bracket.json, stacking.json or snap.json'
     method: checksum  # not timestamp: its state is per task name, shared by all presets
     sources: ['{{.F}}.scad', '{{.F}}.json', opengrid-snap.scad, opengrid-tile.scad, .tools/openscad.version]
     generates: ['out/{{.P}}.stl']
@@ -165,12 +171,12 @@ tasks:
       - '{{.OPENSCAD}} {{.ARGS}} -o out/{{.NAME | default "custom"}}.stl gearplate.scad'
 
   test:
-    desc: Run logic asserts (seam continuity, snap de-dup, slots, bracket grid, assembly, stacking)
+    desc: Run logic asserts (seam continuity, snap de-dup, slots, bracket grid, assembly, stacking, snap)
     silent: true
     cmds:
       - mkdir -p out
       # .echo export needs no geometry, but exits 0 on failed asserts: grep for them
-      - for: [seam, slots, bracket, assembly, stacking]
+      - for: [seam, slots, bracket, assembly, stacking, snap]
         cmd: |
           {{.OPENSCAD}} -o out/{{.ITEM}}.echo tests/{{.ITEM}}.scad 2>/dev/null
           cat out/{{.ITEM}}.echo

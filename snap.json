@@ -1,0 +1,11 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "snap": {
+            "lite": "false"
+        },
+        "snap-lite": {
+            "lite": "true"
+        }
+    }
+}

@@ -2,7 +2,7 @@
 
 > **Living document.** This file records the current understanding of the design, and it gets updated whenever a feature is refined. If the code and this file disagree, fix one of them in the same change.
 >
-> Last updated: 2026-10-13
+> Last updated: 2026-10-20
 
 ## Purpose
 A parametric OpenSCAD generator for **device mounting boards for openGrid**. A device is screwed onto the board's face using heat-set inserts. The board snaps onto an openGrid wall through snaps at its corners.
@@ -26,6 +26,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 8. **R8. Assembly view** (`assembly.scad`). One preview shows a plate, both end caps screwed onto real plate holes, and the device as a block, roughly centred on the plate. It is a fit check, not a printable part.
 9. **R9. Stacking piece** (`stacking.scad`). This is a 1×1 openGrid tile on a solid floor with 4 screw holes on the gearplate hole pattern, either countersunk or counterbored. You screw it onto a gearplate's face (into its inserts), and the next gearplate's corner snaps or posts click into it, so gearplates can be stacked. The screw head type and size are parametric, and they default to M3 countersunk. The outer edges are chamfered like the rest of the project.
 10. **R10. Device workflow** (`task fit`). The user names a device (e.g. `switch`), then enters its size and both caps' end-wall cutouts at prompts. The answers are saved to `devices/<name>/<name>.json`, which can be hand-edited and rebuilt (`task device D=<name>`, or `task` for all). The build goes into the same directory: `assembly.3mf`/`.png`, `plate.stl` and `caps.stl`. The plate is the **smallest** one where every cap screw lands on a hole and the whole cap footprint (flanges and end walls) stays on the board.
+11. **R11. Holed snap** (`snap.scad`). This is a standalone openGrid snap with 2×2 insert holes. When snaps are clicked into neighbouring cells, their holes continue the gearplate's 14 mm hole pattern across the grid, so anything that screws onto a gearplate (the end caps, for example) screws onto loose snaps too. Full or Lite.
 
 ## Current design decisions
 | # | Decision | Why |
@@ -52,6 +53,7 @@ A parametric OpenSCAD generator for **device mounting boards for openGrid**. A d
 | D21 | The assembly exports as **3MF with `--enable=lazy-union`**, one top-level statement per part | Plain export unions everything, and the parts touch, so the STL was one fused mesh that OrcaSlicer couldn't split. Lazy-union gives one 3MF object per part (plate, cap A, cap B, device). Catch: lazy-union also stops `for` from unioning, so a `for` inside `minkowski()` must be wrapped in `union()`. Otherwise every box is minkowski'd together into one big block, which is how the caps first came out. |
 | D22 | The stacking piece **reuses the QuackWorks openGrid tile**, vendored unmodified as `opengrid-tile.scad` (AndyLevesque/QuackWorks `openGrid/openGrid.scad` @ aeac2d3) and pulled in with `use`, so its own demo tile doesn't render. It sits on a `floor_thickness` floor. Both are clipped to `cell − 2·edge_gap` (D3). Holes sit at ±7 from the centre (D1). `head_type` picks the recess: `countersunk` is a cone from `head_d` at the floor top down to `screw_d` at depth `head_h`, and `counterbore` is a flat-bottomed Ø`head_d` × `head_h` bore. Either way the heads are flush and don't foul the snap that fills the cell. The tile corners are left square to match the floor. The edge_gap clip is `chamfered_box()` from `gearplate.scad` (`use`d), so all 12 outer edges get the 0.4 mm `chamfer` (D18) in the same intersection. An `assert` checks that the head clears the tile's corner blocks (reach 5.57 mm along the diagonal) | Accurate grid geometry for free. `stacking.scad` must `include <BOSL2/std.scad>` itself, because the `$`-globals of a `use`d file stay hidden and BOSL2 attachments fail without them. |
 | D23 | **The assembly plate defaults to the smallest that fits** (`min_cells()` in `assembly.scad`). Per axis, the footprint reaches `r` past the outer screws: across, `max(clear, pitch/2 − edge_gap)` (the flange, D20); along, `t[0] + wall` / `t[1] + wall` (cap A's / cap B's end wall, D14). The lowest first-screw index is `i_min(r)` (footprint clears `edge_gap`), and the cells are the fewest whose edge clears the last screw + `r`. `-D cells_x=…` still overrides. Catch: an overriding top-level assignment is evaluated where the variable was *first* assigned (in `gearplate.scad`), so `bracket.scad` is included first and the expressions use only bracket-scope values (`2*pitch`, not `cell`). Device answers reach the models as `-D` overrides, not `-p`/`-P`: `-p` only sets the main file's own parameters, and the device ones live in the included `bracket.scad` | User request: smallest plate for a given device, with no part of a cap overhanging. |
+| D24 | The holed snap is **`openGridSnap()` minus 4 through-holes at (±7, ±7)** from its centre, Ø`insert_d` (4.0, M3 heat-set) like D2, with the D18 0.4 mm chamfer on the top plate (the outward face, where inserts go in). It is output top plate down, as on the gearplate (D6) | Snaps sit centred on cells, so ±7 is exactly the D1 lattice (`tests/snap.scad` checks it against `hole_pos()`). The Ø4 holes reach 9 mm from the centre and clear the click slots (11.1 mm) and the top-plate corner nubs. A full snap is 6.8 mm deep, enough for a 5.7 mm insert; a Lite snap (3.4 mm) is too shallow for a standard insert |
 | D7 | The snap geometry is **reused, not remodelled**, via `include <opengrid-snap.scad>`, vendored from nnarain/opengrid-snap-mount-generator @ c9a1339 | It's an existing, accurate model (by David D / metasyntactic). |
 
 ## Parameters (`gearplate.scad`)
@@ -70,16 +72,19 @@ All parameters of both models apply. `cells_x`/`cells_y` default to the smallest
 ### `stacking.scad`
 `lite` (false), `floor_thickness` (3.5), `screw_d` (3.4), `head_type` (`countersunk` or `counterbore`), `head_d` (6.8, M3 ISO 10642 dk 6.72), `head_h` (1.9, k 1.86), `edge_gap` (0.3), `chamfer` (0.4, 0 means sharp). Presets are in `stacking.json`: `stacking`, `stacking-lite`, and `stacking-counterbore` (M3 socket head ISO 4762: `head_d` 6, `head_h` 3.2, `floor_thickness` 5).
 
+### `snap.scad`
+`lite` (false), `insert_d` (4.0), `chamfer` (0.4, 0 means none). Presets are in `snap.json`: `snap` and `snap-lite`.
+
 ## Tooling
 | What | How |
 |---|---|
 | Presets | `gearplate.json`, which holds OpenSCAD Customizer parameter sets. They also show up in the GUI Customizer. |
 | Build all presets | `task` writes `out/<preset>.stl`. Presets build in parallel, and ones that are already up to date are skipped. |
-| One preset | `task stl P=2x3`. An unknown preset name is an error. Bracket and stacking presets work the same way (`task stl P=bracket-example`, `task stl P=stacking`), because the task finds which preset file defines P. `task` builds all three preset files. |
+| One preset | `task stl P=2x3`. An unknown preset name is an error. Bracket and stacking presets work the same way (`task stl P=bracket-example`, `task stl P=stacking`, `task stl P=snap`), because the task finds which preset file defines P. `task` builds all four preset files. |
 | Assembly | `task assembly` writes `out/assembly.3mf` (one object per part) and a coloured `out/assembly.png` from `assembly.scad` with its default parameters. `task` builds it too. |
 | Device workflow | `task fit` prompts for a device name, then its width, height, depth and up to 4 end-wall cutouts per cap (`w,h,x`). If the device already exists, its saved answers are the defaults, so Enter keeps them. It saves `devices/<name>/<name>.json` (Customizer format, one parameter set named after the device; other `bracket.scad` parameters such as `fit` or `wall` can be added by hand) and builds the device. `task device D=<name>` rebuilds one device, and `task` rebuilds all of them. The generated files in `devices/` are gitignored, and the answers are tracked. |
 | One-off | `task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'` |
-| Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule) `tests/bracket.scad` (cap screws on the grid both ways, screwdriver clearance) `tests/assembly.scad` (every cap screw in the assembly lands on a plate hole, the cap footprint stays on the plate, and the plate is minimal) and `tests/stacking.scad` (stacking holes land on gearplate holes, and the head clears the tile corners). |
+| Logic tests | `task test` runs `tests/seam.scad` (seam continuity, snap de-duplication) and `tests/slots.scad` (front-view mapping, edge indices, the snap-overlap rule) `tests/bracket.scad` (cap screws on the grid both ways, screwdriver clearance) `tests/assembly.scad` (every cap screw in the assembly lands on a plate hole, the cap footprint stays on the plate, and the plate is minimal) `tests/stacking.scad` (stacking holes land on gearplate holes, and the head clears the tile corners) and `tests/snap.scad` (snap holes land on gearplate holes). |
 | Tooling | `task setup` downloads the latest OpenSCAD nightly AppImage and BOSL2 into `.tools/` (gitignored). Re-running it updates both, and it skips the download if that nightly is already installed. |
 | Engine choice | `$OPENSCAD` env if set, otherwise `.tools/openscad --backend=Manifold` if present, otherwise system `openscad`. BOSL2 comes from `.tools/libraries` (`OPENSCADPATH`) when present. A new nightly rebuilds every STL. |
 | List tasks | `task --list` |
@@ -93,6 +98,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - **Corner-cell holes are effectively blind.** The snap fully covers the 4 holes in each corner cell, and the post covers them partly.
 - **Stacking piece not yet verified by printing.** Snap fit on the floored tile, flush heads, and whether the corner-cell inserts of the lower plate hold (they can bottom out against its snap, see above) are all untested.
 - **End caps not yet verified by printing.** Fit (`fit`), how firmly the caps hold the device, and whether the M3 screw heads fit in the `driver_d` clearance are all untested.
+- **Holed snap not yet verified by printing.** Whether the snap still clicks firmly with 4 holes through its core, and insert fit in the 6.8 mm snap, are untested. Lite snaps are too thin for standard inserts.
 - **Not yet verified by printing:** snap fit on a real grid, insert hole fit, and post strength. The tuning values are `insert_d` and `edge_gap`.
 
 ## Open questions and ideas
@@ -104,6 +110,7 @@ Dependencies are [Task](https://taskfile.dev) (go-task), `jq`, `curl` and `git`.
 - Crossing or touching slots can leave acute wedges between them, and diagonal slots can clip holes. Should these be warned about?
 
 ## Changelog
+- **2026-10-20.** Added the holed snap (R11, D24): `snap.scad`, `snap.json` and `tests/snap.scad`.
 - **2026-10-20.** Caps along the device are asymmetric (D14): cap A's end wall can sit flush on the plate edge, so plates are up to a cell shorter (cloudkey 3×6 → 3×5, default device 4×5 → 4×4).
 - **2026-10-13.** Gearplate insert holes: 0.4 mm chamfer on the device face (D18).
 - **2026-10-13.** Device workflow (R10, D23): `task fit` / `task device`, per-device answers in `devices/<name>/`, and the assembly plate now auto-sizes to the smallest that keeps the cap footprint on the board. `tests/assembly.scad` checks the footprint and minimality.
