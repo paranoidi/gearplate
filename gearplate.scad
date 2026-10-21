@@ -23,6 +23,9 @@ lite = false;
 insert_d = 4.0;
 // Clearance per board edge so neighbouring boards don't collide
 edge_gap = 0.3;
+// All insert holes (reusable plate). Off = only the corner-cell holes (for posts) plus
+// the holes the assembly needs for its caps: much shorter prints
+full_holes = true;
 // 45° chamfer on board edges, cable slot rims (both faces) and insert holes (device face) (0 = none)
 chamfer = 0.4;
 
@@ -57,6 +60,12 @@ edge_min_wall = 2;
 // Hole centres along one axis, relative to the cell lattice (not the board edge),
 // so a neighbour offset by n*28 continues the same 14mm pattern.
 function hole_pos(cells) = [for (i = [0 : 2*cells - 1]) pitch/2 + i*pitch];
+// Hole centres [x, y] to drill: all, or (!full) the ones in a corner cell plus `keep`.
+function plate_holes(cx, cy, full, keep = []) =
+    [for (x = hole_pos(cx), y = hole_pos(cy))
+     if (full || len([for (k = keep) if (norm(k - [x, y]) < 1e-6) 1]) > 0
+         || min([for (sx = snap_pos(cx), sy = snap_pos(cy)) max(abs(x - sx), abs(y - sy))]) < cell/2)
+     [x, y]];
 // Corner-cell centres along one axis, de-duplicated for 1-cell boards.
 function snap_pos(cells) = cells == 1 ? [cell/2] : [cell/2, cells*cell - cell/2];
 // Front-view hole index -> model XY. Print orientation is the device face seen
@@ -130,13 +139,14 @@ module chamfered_slot(g, r, h, c, eps) {
     }
 }
 
-module gearplate() {
+// keep: extra holes (model XY) that survive full_holes = false
+module gearplate(keep = []) {
     eps = 0.01;
     difference() {
         translate([edge_gap, edge_gap, 0])
             chamfered_box([cells_x*cell - 2*edge_gap, cells_y*cell - 2*edge_gap, board_thickness], chamfer);
         // insert holes, chamfered at the device face only (the snap side stays sharp)
-        for (x = hole_pos(cells_x), y = hole_pos(cells_y)) translate([x, y, -eps]) {
+        for (h = plate_holes(cells_x, cells_y, full_holes, keep)) translate([h[0], h[1], -eps]) {
             cylinder(d=insert_d, h=board_thickness + 2*eps);
             if (chamfer > 0) cylinder(r1=insert_d/2 + chamfer + eps, r2=insert_d/2, h=chamfer + eps);
         }

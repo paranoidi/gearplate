@@ -54,10 +54,12 @@ screw_xs = [hole(i0), hole(i0 + n)];
 screw_ys = concat([for (z = hole_zs[0]) Y0 - wall + z], [for (z = hole_zs[1]) Y0 + inner_h + wall - z]);
 foot_x = [hole(i0) - rx, hole(i0 + n) + rx];
 foot_y = [Y0 - wall, Y0 + inner_h + wall];
+// Screw holes in gearplate model XY (print orientation mirrors X), kept when !full_holes.
+keep = [for (x = screw_xs, y = screw_ys) [cells_x*cell - x, y]];
 
-if (part == "plate") gearplate();
+if (part == "plate") gearplate(keep);
 else {
-    color("silver") translate([cells_x*cell, 0, 0]) rotate([0, 180, 0]) gearplate();
+    color("silver") translate([cells_x*cell, 0, 0]) rotate([0, 180, 0]) gearplate(keep);
     // One top-level statement per part: with lazy-union each becomes its own 3MF object.
     // (x,y,z) -> (-x, z, y)
     color("steelblue") translate([X0 + inner_w, Y0 - wall, 0]) rotate([0, 0, 180]) rotate([90, 0, 0]) cap(0);

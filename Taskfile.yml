@@ -106,6 +106,10 @@ tasks:
         w=$(ask device_w 60 'Device width mm'); num "$w"
         h=$(ask device_h 100 'Device height mm (between the caps)'); num "$h"
         d=$(ask device_d 25 'Device depth mm (plate to front)'); num "$d"
+        fh=$(get full_holes true)
+        if [ "$fh" = true ]; then yn='Y/n'; else yn='y/N'; fi
+        printf 'Reusable plate (full holes) [%s] ? ' "$yn"; read -r v
+        case "$v" in [yY]*) fh=true ;; [nN]*) fh=false ;; '') ;; *) echo "answer y or n" >&2; exit 1 ;; esac
         echo 'End-wall cutouts as w,h,x (x: 0 = centred, + = right seen from outside, strap on top).'
         echo 'Blank line = keep shown value / no more cutouts, - = remove.'
         for cap in a b; do
@@ -128,10 +132,10 @@ tasks:
           done
         done
         mkdir -p devices/$name
-        jq -n --arg n "$name" --arg w "$w" --arg h "$h" --arg d "$d" \
+        jq -n --arg n "$name" --arg w "$w" --arg h "$h" --arg d "$d" --arg fh "$fh" \
           --arg a1 "$a1" --arg a2 "$a2" --arg a3 "$a3" --arg a4 "$a4" \
           --arg b1 "$b1" --arg b2 "$b2" --arg b3 "$b3" --arg b4 "$b4" \
-          '{fileFormatVersion: "1", parameterSets: {($n): {device_w: $w, device_h: $h, device_d: $d,
+          '{fileFormatVersion: "1", parameterSets: {($n): {device_w: $w, device_h: $h, device_d: $d, full_holes: $fh,
             a_cut1: $a1, a_cut2: $a2, a_cut3: $a3, a_cut4: $a4, b_cut1: $b1, b_cut2: $b2, b_cut3: $b3, b_cut4: $b4}}}' > "$f"
         echo "Saved $f"
         "{{.TASK_EXE}}" device D="$name"
