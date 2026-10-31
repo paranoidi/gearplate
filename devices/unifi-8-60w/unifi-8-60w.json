@@ -1,0 +1,21 @@
+{
+  "fileFormatVersion": "1",
+  "parameterSets": {
+    "unifi-8-60w": {
+      "device_w": "135",
+      "device_h": "100",
+      "device_d": "28.5",
+      "full_holes": "true",
+      "a_cut1": "[130, 29, 0]",
+      "a_cut2": "[0, 0, 0]",
+      "a_cut3": "[0, 0, 0]",
+      "a_cut4": "[0, 0, 0]",
+      "b_cut1": "[130, 28.5, 0]",
+      "b_cut2": "[0, 0, 0]",
+      "b_cut3": "[0, 0, 0]",
+      "b_cut4": "[0, 0, 0]",
+      "a_top": "[120, 17, 0]",
+      "b_top": "[0, 0, 0]"
+    }
+  }
+}

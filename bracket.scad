@@ -45,11 +45,21 @@ b_cut2 = [0, 0, 0];
 b_cut3 = [0, 0, 0];
 b_cut4 = [0, 0, 0];
 
+/* [Top cutouts] */
+// Window in the front strap [w, l, x_offset], open through the cap's end: w across,
+// l along the device from its end, x_offset as for notches. [0,0,0] = off. Combines
+// with end-wall notches. The cap grows to keep a strap band of at least `top_band` past
+// the window.
+a_top = [0, 0, 0];
+b_top = [0, 0, 0];
+
 /* [Hidden] */
 pitch = 14;
 // gearplate's board edge gap: flanges reach pitch/2 - edge_gap past the screw, flush
 // with the plate edge when a cap sits on the edge hole row
 edge_gap = 0.3;
+// minimum strap band left past a top cutout
+top_band = 15;
 $fs = 0.5;
 $fa = 5;
 
@@ -74,7 +84,8 @@ inner_h = device_h + fit;
 off = hole_off(inner_w, wall, clear);
 t_min = max(0, clear - wall);
 t = cap_hole_t(inner_h, wall, t_min);
-clen = [for (tt = t) max(cap_len, wall + tt + clear)];
+tops = [a_top, b_top];
+clen = [for (b = [0, 1]) max(cap_len, wall + t[b] + clear, tops[b] == [0, 0, 0] ? 0 : wall + tops[b][1] + top_band)];
 hole_zs = [for (b = [0, 1]) [for (z = [wall + t[b] : pitch : clen[b] - clear]) z]];
 flange_w = off + max(clear, pitch/2 - edge_gap);
 outer_w = inner_w + 2*wall;
@@ -90,6 +101,12 @@ for (b = [0, 1], k = [0 : 3]) let (c = cuts[b][k], name = str(b ? "b" : "a", "_c
         assert(len(c) == 3, str(name, " must be [w, h, x_offset]"));
         assert(c[0] > 0 && c[1] > 0 && abs(c[2]) + c[0]/2 <= inner_w/2 && c[1] <= in_d,
                str(name, " must fit inside the end wall (", inner_w, " wide, ", in_d, " high)"));
+    }
+for (b = [0, 1]) let (c = tops[b], name = str(b ? "b" : "a", "_top"))
+    if (c != [0, 0, 0]) {
+        assert(len(c) == 3, str(name, " must be [w, l, x_offset]"));
+        assert(c[0] > 0 && c[1] > 0 && abs(c[2]) + c[0]/2 <= inner_w/2,
+               str(name, " must fit between the side walls (", inner_w, " wide)"));
     }
 
 echo(str("Cap hole rows are ", hole_span(inner_w, wall, clear) / pitch, " holes apart across; ",
@@ -148,6 +165,28 @@ module cap(b) {
             hull() {
                 translate([x0 - ch, -eps, -1]) cube([w + 2*ch, 2*eps, wall + 2]);
                 translate([x0, ch - eps, -1]) cube([w, 2*eps, wall + 2]);
+            }
+        }
+        // top cutout: strap window open through the end, l past the end wall's inner
+        // face; the end wall below it is cut down to the device face. Chamfered on both
+        // strap faces, the end wall's outer face and the cut-down end wall's inner edge.
+        let (c = tops[b]) if (c != [0, 0, 0]) let (x0 = inner_w/2 - c[2] - c[0]/2, w = c[0], l = c[1]) {
+            translate([x0, in_d, -1]) cube([w, wall + 1, wall + l + 1]);
+            hull() {
+                translate([x0 - ch, wall_h - eps, -1]) cube([w + 2*ch, 2*eps, wall + l + 1 + ch]);
+                translate([x0, wall_h - ch - eps, -1]) cube([w, 2*eps, wall + l + 1]);
+            }
+            hull() {
+                translate([x0 - ch, in_d - ch, -eps]) cube([w + 2*ch, wall + 1 + ch, 2*eps]);
+                translate([x0, in_d, ch - eps]) cube([w, wall + 1, 2*eps]);
+            }
+            hull() {  // strap inner face; starts at the end wall so its top isn't grooved
+                translate([x0 - ch, in_d - eps, wall]) cube([w + 2*ch, 2*eps, l + ch]);
+                translate([x0, in_d + ch - eps, wall]) cube([w, 2*eps, l]);
+            }
+            hull() {  // cut-down end wall's inner top edge (air if a notch removed it)
+                translate([x0, in_d - ch, wall - eps]) cube([w, ch + 1, 2*eps]);
+                translate([x0, in_d - eps, wall - ch]) cube([w, 1, ch]);
             }
         }
     }

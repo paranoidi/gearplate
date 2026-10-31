@@ -2,7 +2,7 @@
 #   task                 all presets -> out/<preset>.stl (skips up-to-date ones)
 #   task stl P=2x3       one preset (from gearplate.json, bracket.json, stacking.json or snap.json)
 #   task assembly        plate + caps + device fit check -> out/assembly.3mf/.png
-#   task device          interactive: name a device, enter size + cap cutouts -> devices/<name>/
+#   task device          interactive: name a device, enter size + cap cutouts (end wall or top) -> devices/<name>/
 #   task device:build D=switch rebuild one device from devices/switch/switch.json (hand-editable)
 #   task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'
 #   task test            logic checks
@@ -110,9 +110,21 @@ tasks:
         if [ "$fh" = true ]; then yn='Y/n'; else yn='y/N'; fi
         printf 'Reusable plate (full holes) [%s] ? ' "$yn"; read -r v
         case "$v" in [yY]*) fh=true ;; [nN]*) fh=false ;; '') ;; *) echo "answer y or n" >&2; exit 1 ;; esac
-        echo 'End-wall cutouts as w,h,x (x: 0 = centred, + = right seen from outside, strap on top).'
+        echo 'Per cap: a top cutout (strap window open through the end, e.g. for LEDs) as w,l,x'
+        echo '(l = length along the device from its end), then up to 4 end-wall cutouts as w,h,x.'
+        echo 'x: 0 = centred, + = right seen from outside, strap on top.'
         echo 'Blank line = keep shown value / no more cutouts, - = remove.'
         for cap in a b; do
+          cur=$(get ${cap}_top '[0, 0, 0]' | tr -d '[] ')
+          if [ "$cur" = 0,0,0 ]; then cur=; fi
+          printf 'Cap %s top cutout [%s]: ' $(echo $cap | tr ab AB) "$cur"; read -r c
+          c=$(echo "${c:-$cur}" | tr -d '[] ')
+          if [ "$c" = - ]; then c=; fi
+          if [ -n "$c" ]; then
+            echo "$c" | grep -qE '^[0-9.]+,[0-9.]+,-?[0-9.]+$' || { echo "cutout must be w,l,x: $c" >&2; exit 1; }
+            top="[$(echo "$c" | sed 's/,/, /g')]"
+          else top='[0, 0, 0]'; fi
+          eval ${cap}t='$top'
           more=1
           for k in 1 2 3 4; do
             cur=$(get ${cap}_cut$k '[0, 0, 0]' | tr -d '[] ')
@@ -134,9 +146,9 @@ tasks:
         mkdir -p devices/$name
         jq -n --arg n "$name" --arg w "$w" --arg h "$h" --arg d "$d" --arg fh "$fh" \
           --arg a1 "$a1" --arg a2 "$a2" --arg a3 "$a3" --arg a4 "$a4" \
-          --arg b1 "$b1" --arg b2 "$b2" --arg b3 "$b3" --arg b4 "$b4" \
+          --arg b1 "$b1" --arg b2 "$b2" --arg b3 "$b3" --arg b4 "$b4" --arg at "$at" --arg bt "$bt" \
           '{fileFormatVersion: "1", parameterSets: {($n): {device_w: $w, device_h: $h, device_d: $d, full_holes: $fh,
-            a_cut1: $a1, a_cut2: $a2, a_cut3: $a3, a_cut4: $a4, b_cut1: $b1, b_cut2: $b2, b_cut3: $b3, b_cut4: $b4}}}' > "$f"
+            a_cut1: $a1, a_cut2: $a2, a_cut3: $a3, a_cut4: $a4, b_cut1: $b1, b_cut2: $b2, b_cut3: $b3, b_cut4: $b4, a_top: $at, b_top: $bt}}}' > "$f"
         echo "Saved $f"
         "{{.TASK_EXE}}" device:build D="$name"
 
