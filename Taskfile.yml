@@ -2,8 +2,8 @@
 #   task                 all presets -> out/<preset>.stl (skips up-to-date ones)
 #   task stl P=2x3       one preset (from gearplate.json, bracket.json, stacking.json or snap.json)
 #   task assembly        plate + caps + device fit check -> out/assembly.3mf/.png
-#   task fit             interactive: name a device, enter size + cap cutouts -> devices/<name>/
-#   task device D=switch rebuild one device from devices/switch/switch.json (hand-editable)
+#   task device          interactive: name a device, enter size + cap cutouts -> devices/<name>/
+#   task device:build D=switch rebuild one device from devices/switch/switch.json (hand-editable)
 #   task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'
 #   task test            logic checks
 #   task setup           fetch latest OpenSCAD nightly + BOSL2 into .tools/ (used automatically)
@@ -51,7 +51,7 @@ tasks:
         task: stl
         vars: { P: '{{.ITEM}}' }
       - for: { var: DEVICES }
-        task: device
+        task: device:build
         vars: { D: '{{.ITEM}}' }
       - assembly
 
@@ -89,7 +89,7 @@ tasks:
       # preview mode keeps the colours (an STL can't)
       - '{{.OPENSCAD}} -o out/assembly.png --imgsize=1000,800 --viewall --autocenter --camera=0,0,0,55,0,25,0 assembly.scad'
 
-  fit:
+  device:
     desc: 'Interactive: name a device, enter its size and cap cutouts, build its smallest assembly'
     interactive: true
     silent: true
@@ -138,9 +138,9 @@ tasks:
           '{fileFormatVersion: "1", parameterSets: {($n): {device_w: $w, device_h: $h, device_d: $d, full_holes: $fh,
             a_cut1: $a1, a_cut2: $a2, a_cut3: $a3, a_cut4: $a4, b_cut1: $b1, b_cut2: $b2, b_cut3: $b3, b_cut4: $b4}}}' > "$f"
         echo "Saved $f"
-        "{{.TASK_EXE}}" device D="$name"
+        "{{.TASK_EXE}}" device:build D="$name"
 
-  device:
+  device:build:
     desc: Build one device (D=<name>) from devices/<name>/<name>.json into that directory
     label: device-{{.D}}
     requires: { vars: [D] }
@@ -153,7 +153,7 @@ tasks:
         sh: "[ -f {{.F}} ] && jq -r --arg n {{.D}} '.parameterSets[$n] | to_entries | map(\"-D\", \"\\(.key)=\\(.value)\") | @sh' {{.F}} || true"
     preconditions:
       - sh: '[ -f {{.F}} ]'
-        msg: 'No {{.F}}; create it with task fit'
+        msg: 'No {{.F}}; create it with task device'
     method: checksum
     sources: ['{{.F}}', assembly.scad, gearplate.scad, bracket.scad, opengrid-snap.scad, .tools/openscad.version]
     generates: ['{{.DIR}}/assembly.3mf', '{{.DIR}}/assembly.png', '{{.DIR}}/plate.stl', '{{.DIR}}/caps.stl']

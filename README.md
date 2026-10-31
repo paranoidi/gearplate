@@ -22,7 +22,7 @@ Requires [Task](https://taskfile.dev), `jq`, `curl` and `git`.
 task setup     # download OpenSCAD nightly + BOSL2 into .tools/ (Linux x86_64)
 task           # build every preset in *.json into out/*.stl
 task stl P=4x4 # build one preset
-task fit       # interactive: enter a device's size and cutouts, get the smallest plate + caps
+task device    # interactive: enter a device's size and cutouts, get the smallest plate + caps
 task test      # logic checks
 task images    # re-render the pictures in docs/
 ```
