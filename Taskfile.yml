@@ -191,7 +191,7 @@ tasks:
     cmds:
       - mkdir -p docs
       - |
-        for fp in gearplate:4x4-mixed-slots gearplate:6x4-underware bracket:bracket-example stacking:stacking snap:snap; do
+        for fp in gearplate:4x4-mixed-slots gearplate:6x4-underware bracket:bracket-example bracket:bracket-top stacking:stacking snap:snap; do
           f=${fp%%:*} p=${fp#*:}
           {{.OPENSCAD}} -p $f.json -P $p --render --imgsize=800,600 --viewall --autocenter --colorscheme=Tomorrow -o docs/$p.png $f.scad
         done

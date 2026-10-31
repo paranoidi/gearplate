@@ -11,6 +11,7 @@ Parametric OpenSCAD generator for device mounting boards that snap onto an openG
 | ![4x4 plate with cable slots](docs/4x4-mixed-slots.png) | **Gearplate** (`gearplate.scad`). Any size in 28 mm cells, with insert holes on a 14 mm grid that continues across neighbouring boards. Optional cable slots, which may open out of an edge. Full or Lite snaps. |
 | ![6x4 plate on posts](docs/6x4-underware.png) | **Posts.** `post_height` raises the board off the wall, e.g. for under-desk mounting. |
 | ![End caps](docs/bracket-example.png) | **Device end caps** (`bracket.scad`). A pair of caps that hold a box-shaped device by its ends and screw onto the hole grid. Each cap's end wall gets its own cable/port notches. |
+| ![Cap with top cutout](docs/bracket-top.png) | **Top cutout.** A window through a cap's front strap, open at the end, e.g. to keep a switch's LEDs visible. It can be combined with end-wall notches. |
 | ![Stacking piece](docs/stacking.png) | **Stacking piece** (`stacking.scad`). A 1×1 openGrid tile that screws onto a gearplate, so the next gearplate can snap onto it. |
 | ![Holed snap](docs/snap.png) | **Holed snap** (`snap.scad`). A standalone openGrid snap with 2×2 insert holes on the gearplate pattern, so caps can screw onto loose snaps in the grid. |
 
