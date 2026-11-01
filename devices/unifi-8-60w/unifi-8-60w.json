@@ -28,7 +28,8 @@
       "slot6": "[0, 0, 0, 0]",
       "slot7": "[0, 0, 0, 0]",
       "slot8": "[0, 0, 0, 0]",
-      "post_height": "19"
+      "post_height": "19",
+      "center_x": "true"
     }
   }
 }

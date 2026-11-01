@@ -16,6 +16,8 @@ device_h = 100;
 device_d = 25;
 // Clearance per side around the device
 fit = 0.5;
+// Widen the caps by one hole pitch when needed, so the device centres on the plate (D30)
+center_x = false;
 // Wall, end wall and strap thickness
 wall = 3;
 // Flange thickness
@@ -65,8 +67,10 @@ $fa = 5;
 
 // Distance between the left and right hole rows: the smallest multiple of the hole
 // pitch that leaves `clear` between each side wall and its screw centre, so both rows
-// land on the gearplate grid.
-function hole_span(inner_w, wall, clear) = pitch * ceil((inner_w + 2*wall + 2*clear) / pitch);
+// land on the gearplate grid. center_x makes the count odd (+1 pitch, 7 mm more flange per
+// side): a plate has an even number of hole columns, so only an odd span centres on it.
+function hole_span(inner_w, wall, clear) = let (k = ceil((inner_w + 2*wall + 2*clear) / pitch))
+    pitch * (k + (center_x && k % 2 == 0 ? 1 : 0));
 // Side wall outer face -> screw centre.
 function hole_off(inner_w, wall, clear) = (hole_span(inner_w, wall, clear) - inner_w) / 2 - wall;
 // End wall inner face -> first screw, [cap A, cap B], each >= t_min. Cap A's end wall

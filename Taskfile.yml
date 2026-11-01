@@ -200,7 +200,7 @@ tasks:
     cmds:
       - mkdir -p out
       # .echo export needs no geometry, but exits 0 on failed asserts: grep for them
-      - for: [seam, slots, bracket, assembly, margin, stacking, snap]
+      - for: [seam, slots, bracket, assembly, margin, center, stacking, snap]
         cmd: |
           {{.OPENSCAD}} -o out/{{.ITEM}}.echo tests/{{.ITEM}}.scad 2>/dev/null
           cat out/{{.ITEM}}.echo

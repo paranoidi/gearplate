@@ -86,6 +86,9 @@ ask_yn full_holes true 'Reusable plate (full holes)'
 say 'Snap posts raise the plate off the wall, e.g. to run wires or underware channels behind'
 say 'it (underware height is 18.6 mm). 0 = snaps directly on the plate.'
 ask_num post_height 0 'Post height mm'
+say 'Centre the device on the plate: widens both caps by one hole (7 mm per side) when the'
+say 'screw span would leave a spare hole column on one side.'
+ask_yn center_x false 'Centre device on plate'
 fi
 if want cap-a || want cap-b; then
 say 'Per cap: a top cutout (strap window open through the end, e.g. for LEDs) as w,l,x'
