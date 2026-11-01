@@ -191,8 +191,13 @@ tasks:
         {{.OPENSCAD}} "$@" -D margin_a=1 -D margin_b=1 -D margin_r=1 -D 'slot1=[3,1,10,1]' -o out/coordinates.echo assembly.scad 2>/dev/null
         command -v python3 >/dev/null || { echo "skipping docs/coordinates.png: python3 not found" >&2; exit 0; }
         python3 spec.py out/coordinates.echo docs/coordinates.png 'unifi-8-60w with margin_a = margin_b = margin_r = 1 and slot1 = [3, 1, 10, 1]'
-      # preview mode keeps the part colours
-      - '{{.OPENSCAD}} --imgsize=800,600 --viewall --autocenter --camera=0,0,0,55,0,25,0 --colorscheme=Tomorrow -o docs/assembly.png assembly.scad'
+      # README hero: the unifi-8-60w device as saved (preview mode keeps the part colours) + its spec drawing
+      - |
+        eval "set -- $(jq -r '.parameterSets["unifi-8-60w"] | to_entries | map("-D", "\(.key)=\(.value)") | @sh' devices/unifi-8-60w/unifi-8-60w.json)"
+        {{.OPENSCAD}} "$@" --imgsize=800,600 --viewall --autocenter --camera=0,0,0,55,0,25,0 --colorscheme=Tomorrow -o docs/assembly.png assembly.scad
+        {{.OPENSCAD}} "$@" -o out/unifi-8-60w.echo assembly.scad 2>/dev/null
+        command -v python3 >/dev/null || { echo "skipping docs/spec.png: python3 not found" >&2; exit 0; }
+        python3 spec.py out/unifi-8-60w.echo docs/spec.png unifi-8-60w
 
   test:
     desc: Run logic asserts (seam continuity, snap de-dup, slots, bracket grid, assembly, margins, stacking, snap)

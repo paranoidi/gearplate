@@ -2,7 +2,9 @@
 
 Parametric OpenSCAD generator for device mounting boards that snap onto an openGrid. Screw your device onto the board through M3 heat-set inserts; the board clicks into the grid with openGrid snaps at its corners.
 
-![Device fit check: plate, end caps and device](docs/assembly.png)
+![Device fit check: UniFi 8-port switch on posts, plate, end caps and device](docs/assembly.png)
+
+![Spec drawing for the UniFi switch: holes, caps, margins and wire slot](docs/spec.png)
 
 ## Parts
 
