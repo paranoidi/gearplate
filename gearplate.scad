@@ -28,6 +28,11 @@ edge_gap = 0.3;
 full_holes = true;
 // 45° chamfer on board edges, cable slot rims (both faces) and insert holes (device face) (0 = none)
 chamfer = 0.4;
+// Close the insert holes with a solid first layer on the device face (cleaner face, more
+// bed grip); the insert pushes through it. Hole chamfers are dropped when on.
+solid_first_layer = false;
+// First layer height in mm (match your slicer)
+first_layer = 0.2;
 
 /* [Cable slots] */
 // Slots are [x1, y1, x2, y2] in hole-grid indices, seen from the device face:
@@ -145,10 +150,13 @@ module gearplate(keep = []) {
     difference() {
         translate([edge_gap, edge_gap, 0])
             chamfered_box([cells_x*cell - 2*edge_gap, cells_y*cell - 2*edge_gap, board_thickness], chamfer);
-        // insert holes, chamfered at the device face only (the snap side stays sharp)
-        for (h = plate_holes(cells_x, cells_y, full_holes, keep)) translate([h[0], h[1], -eps]) {
-            cylinder(d=insert_d, h=board_thickness + 2*eps);
-            if (chamfer > 0) cylinder(r1=insert_d/2 + chamfer + eps, r2=insert_d/2, h=chamfer + eps);
+        // insert holes, chamfered at the device face only (the snap side stays sharp),
+        // or capped by a solid first layer there
+        skin = solid_first_layer ? first_layer : 0;
+        for (h = plate_holes(cells_x, cells_y, full_holes, keep)) translate([h[0], h[1], skin - eps]) {
+            cylinder(d=insert_d, h=board_thickness - skin + 2*eps);
+            if (chamfer > 0 && !solid_first_layer)
+                cylinder(r1=insert_d/2 + chamfer + eps, r2=insert_d/2, h=chamfer + eps);
         }
         for (s = slots) if (s != [0, 0, 0, 0]) for (g = slot_segs(s, cells_x, cells_y, slot_r))
             chamfered_slot(g, slot_r, board_thickness, chamfer, eps);
