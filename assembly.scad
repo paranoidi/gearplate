@@ -80,15 +80,23 @@ for (k = keep) assert(!in_slot(k), str("a slot cuts a cap screw hole at hole col
     round((cells_x*cell - k[0] - pitch/2) / pitch), ", row ", round((k[1] - pitch/2) / pitch)));
 
 // Hole map for picking slot indices (D28): one char per hole, row 0 (cap A end) at the
-// bottom, as seen from the device face. o cap screw, # slot, s corner snap,
-// x under the cap/device footprint, . free.
+// bottom, as seen from the device face. + cap screw, O slot, A / B under cap A / B,
+// X under the device, S snap under a cap or the device, s corner snap, . free insert hole.
+// Runs of A, B or X/S are joined into blocks.
 function cat(l, i = 0) = i >= len(l) ? "" : str(l[i], cat(l, i + 1));
 function is_screw(x, y) = len([for (sx = screw_xs, sy = screw_ys) if (abs(sx - x) + abs(sy - y) < 1e-6) 1]) > 0;
-function map_ch(i, j) = let (x = hole(i), y = hole(j))
-    is_screw(x, y) ? "o"
-  : in_slot([cells_x*cell - x, y]) ? "#"
-  : min([for (sx = snap_pos(cells_x), sy = snap_pos(cells_y)) max(abs(x - sx), abs(y - sy))]) < cell/2 ? "s"
-  : x > foot_x[0] && x < foot_x[1] && y > foot_y[0] && y < foot_y[1] ? "x" : ".";
+function map_ch(i, j) = let (x = hole(i), y = hole(j),
+    snap = min([for (sx = snap_pos(cells_x), sy = snap_pos(cells_y)) max(abs(x - sx), abs(y - sy))]) < cell/2,
+    in_x = x > foot_x[0] && x < foot_x[1])
+    is_screw(x, y) ? "+"
+  : in_slot([cells_x*cell - x, y]) ? "O"
+  : in_x && y > foot_y[0] && y < Y0 - wall + clen[0] ? (snap ? "S" : "A")
+  : in_x && y > foot_y[1] - clen[1] && y < foot_y[1] ? (snap ? "S" : "B")
+  : x > X0 + fit && x < X0 + fit + device_w && y > Y0 + fit/2 && y < Y0 + fit/2 + device_h ? (snap ? "S" : "X")
+  : snap ? "s" : ".";
+// Inside a block, S takes the letter of its neighbour.
+function join(a, b) = let (c = a == "S" ? b : a, d = b == "S" ? a : b)
+    c == d && (c == "A" || c == "B" || c == "X") ? c : " ";
 // Geometry for spec.py (the spec.png drawing), face view in mm. Echo prints this as JSON.
 echo(Spec = [["cells", [cells_x, cells_y]], ["cell", cell], ["edge_gap", edge_gap], ["snap_w", snap_w],
     ["slot_r", slot_r], ["margins", [margin_a, margin_b, margin_l, margin_r]],
@@ -98,9 +106,14 @@ echo(Spec = [["cells", [cells_x, cells_y]], ["cell", cell], ["edge_gap", edge_ga
     ["screws", [for (x = screw_xs, y = screw_ys) [x, y]]],
     ["slots", [for (k = [0 : len(slots) - 1]) if (slots[k] != [0, 0, 0, 0])
         [k + 1, slots[k], [for (g = slot_segs(slots[k], cells_x, cells_y, slot_r)) [for (q = g) [cells_x*cell - q[0], q[1]]]]]]]]);
+// "Map: " is stripped by task device:check.
 echo(str("Map:     ", cat([for (i = [0 : 2*cells_x - 1]) str(i % 10, " ")])));
+echo("Map:");
 for (j = [2*cells_y - 1 : -1 : 0])
-    echo(str("Map: ", j < 10 ? " " : "", j, "  ", cat([for (i = [0 : 2*cells_x - 1]) str(map_ch(i, j), " ")])));
+    echo(str("Map: ", j < 10 ? " " : "", j, "  ", cat([for (i = [0 : 2*cells_x - 1])
+        str(map_ch(i, j), i < 2*cells_x - 1 ? join(map_ch(i, j), map_ch(i + 1, j)) : " ")])));
+echo("Map:");
+echo("Map: . insert hole  A/B cap  X device  S snap under cap/device  s snap  O slot  + cap screw");
 
 if (part == "plate") gearplate(keep);
 else {

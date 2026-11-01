@@ -105,8 +105,16 @@ tasks:
     env: { TASK_EXE: '{{.TASK_EXE}}' }
     cmds: ['bash device.sh --edit {{.D}}']
 
+  edit-*:
+    desc: 'Interactive: edit one section of an existing device (D=<name> or asked): edit-size, edit-cap-a, edit-cap-b, edit-margin, edit-slots'
+    interactive: true
+    silent: true
+    vars: { S: '{{index .MATCH 0}}' }
+    env: { TASK_EXE: '{{.TASK_EXE}}' }
+    cmds: ['bash device.sh --only {{.S}} {{.D}}']
+
   device:check:
-    desc: Plate size, hole map and asserts for one device (D=<name>), no geometry
+    desc: Plate size, hole map and asserts for one device (D=<name>), no geometry; EXTRA = more OpenSCAD args
     label: device-check-{{.D}}
     requires: { vars: [D] }
     silent: true
@@ -120,8 +128,9 @@ tasks:
         msg: 'No {{.F}}; create it with task device'
     cmds:
       - |
-        {{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/assembly.echo assembly.scad 2>/dev/null
-        grep -E 'Assembly:|Map:|ERROR|WARNING' {{.DIR}}/assembly.echo | sed 's/^ECHO: "//; s/"$//'
+        echo 'Computing plate and hole map...'
+        {{.OPENSCAD}} {{.ARGS}} {{.EXTRA}} -o {{.DIR}}/assembly.echo assembly.scad 2>/dev/null
+        grep -E 'Assembly:|Map:|ERROR|WARNING' {{.DIR}}/assembly.echo | sed 's/^ECHO: "//; s/"$//; s/^Map: \?//'
         ! grep -qE 'ERROR|WARNING' {{.DIR}}/assembly.echo
 
   device:build:
@@ -147,12 +156,17 @@ tasks:
         vars: { D: '{{.D}}' }
       # coordinate drawing (holes, caps, margins, slots) from the Spec echo
       # optional: skipped with a note when python3 is missing (spec.py itself falls back to .svg)
+      - { cmd: "echo 'Drawing spec.png...'", silent: true }
       - |
         if command -v python3 >/dev/null; then python3 spec.py {{.DIR}}/assembly.echo {{.DIR}}/spec.png {{.D}}
         else echo "skipping spec.png: python3 not found" >&2; fi
+      - { cmd: "echo 'Rendering assembly.3mf...'", silent: true }
       - '{{.OPENSCAD}} {{.ARGS}} --enable=lazy-union -o {{.DIR}}/assembly.3mf assembly.scad'
+      - { cmd: "echo 'Rendering assembly.png...'", silent: true }
       - '{{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/assembly.png --imgsize=1000,800 --viewall --autocenter --camera=0,0,0,55,0,25,0 assembly.scad'
+      - { cmd: "echo 'Rendering plate.stl...'", silent: true }
       - '{{.OPENSCAD}} {{.ARGS}} -D ''part="plate"'' -o {{.DIR}}/plate.stl assembly.scad'
+      - { cmd: "echo 'Rendering caps.stl...'", silent: true }
       - '{{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/caps.stl bracket.scad'
 
   custom:

@@ -25,6 +25,7 @@ task           # build every preset in *.json into out/*.stl
 task stl P=4x4 # build one preset
 task device    # interactive: device size, cap cutouts, plate margins + wire slots -> plate + caps
 task edit-device D=switch  # same questions, saved answers as defaults
+task edit-slots D=switch   # one section only: edit-size, edit-cap-a, edit-cap-b, edit-margin, edit-slots
 task test      # logic checks
 task images    # re-render the pictures in docs/
 ```
