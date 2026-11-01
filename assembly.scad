@@ -10,13 +10,23 @@
 // All gearplate.scad and bracket.scad parameters apply (-D or Customizer); `chamfer`
 // is shared by board and caps.
 
+/* [Plate margins] */
+// Extra whole openGrid cells added to the smallest plate, seen from the device face:
+// A = cap A end (bottom, row 0), B = cap B end, L/R = left/right. Declared before the
+// includes: the cells_x/cells_y overrides below are evaluated where gearplate.scad
+// first assigns them.
+margin_a = 0; // [0:10]
+margin_b = 0; // [0:10]
+margin_l = 0; // [0:10]
+margin_r = 0; // [0:10]
+
 // bracket first: cells_x below is evaluated where gearplate.scad first assigns it, so it
 // may only use values bracket.scad has already defined (not `cell`, not n/m below)
 include <bracket.scad>
 include <gearplate.scad>
 
-cells_x = min_cells(hole_span(inner_w, wall, clear) / pitch, max(clear, pitch/2 - edge_gap));
-cells_y = min_cells((inner_h - t[0] - t[1]) / pitch, t[0] + wall, t[1] + wall);
+cells_x = min_cells(hole_span(inner_w, wall, clear) / pitch, max(clear, pitch/2 - edge_gap)) + margin_l + margin_r;
+cells_y = min_cells((inner_h - t[0] - t[1]) / pitch, t[0] + wall, t[1] + wall) + margin_a + margin_b;
 
 /* [Hidden] */
 assembly = true;
@@ -39,10 +49,13 @@ m = (inner_h - t[0] - t[1]) / pitch;          // between cap A's and cap B's fir
 rx = max(clear, pitch/2 - edge_gap);          // flange reach past the screw (D20)
 ry = t[0] + wall;                             // end wall reach past the first screw, cap A
 ry2 = t[1] + wall;                            // and cap B
-i0 = place(cells_x, n, rx, rx);
-j0 = place(cells_y, m, ry, ry2);
-assert(i0 >= i_min(rx), str("plate too small for device: needs ", min_cells(n, rx), " cells across"));
-assert(j0 >= i_min(ry), str("plate too small for device: needs ", min_cells(m, ry, ry2), " cells along"));
+// Placed on the plate minus its margin cells, then shifted past the A / L margin (D27).
+cx0 = cells_x - margin_l - margin_r;
+cy0 = cells_y - margin_a - margin_b;
+i0 = place(cx0, n, rx, rx) + 2*margin_l;
+j0 = place(cy0, m, ry, ry2) + 2*margin_a;
+assert(i0 - 2*margin_l >= i_min(rx), str("plate too small for device: needs ", min_cells(n, rx) + margin_l + margin_r, " cells across"));
+assert(j0 - 2*margin_a >= i_min(ry), str("plate too small for device: needs ", min_cells(m, ry, ry2) + margin_a + margin_b, " cells along"));
 echo(str("Assembly: plate ", cells_x, " x ", cells_y, " cells; screws on hole columns ", i0, " and ", i0 + n,
          ", rows from ", j0, " (cap A) and ", j0 + m, " (cap B)"));
 
@@ -56,6 +69,38 @@ foot_x = [hole(i0) - rx, hole(i0 + n) + rx];
 foot_y = [Y0 - wall, Y0 + inner_h + wall];
 // Screw holes in gearplate model XY (print orientation mirrors X), kept when !full_holes.
 keep = [for (x = screw_xs, y = screw_ys) [cells_x*cell - x, y]];
+
+// Slots vs holes (model XY): true if the slot cutter (r + rim chamfer) breaks into a
+// hole of radius insert_d/2 centred at p. A cap screw hole may not be cut (D28).
+function seg_d(p, a, b) = let (ab = b - a, t = ab*ab == 0 ? 0 : max(0, min(1, (p - a)*ab / (ab*ab))))
+    norm(p - a - t*ab);
+function in_slot(p) = len([for (s = slots) if (s != [0, 0, 0, 0]) for (g = slot_segs(s, cells_x, cells_y, slot_r))
+    if (seg_d(p, g[0], g[1]) < slot_r + chamfer + insert_d/2) 1]) > 0;
+for (k = keep) assert(!in_slot(k), str("a slot cuts a cap screw hole at hole column ",
+    round((cells_x*cell - k[0] - pitch/2) / pitch), ", row ", round((k[1] - pitch/2) / pitch)));
+
+// Hole map for picking slot indices (D28): one char per hole, row 0 (cap A end) at the
+// bottom, as seen from the device face. o cap screw, # slot, s corner snap,
+// x under the cap/device footprint, . free.
+function cat(l, i = 0) = i >= len(l) ? "" : str(l[i], cat(l, i + 1));
+function is_screw(x, y) = len([for (sx = screw_xs, sy = screw_ys) if (abs(sx - x) + abs(sy - y) < 1e-6) 1]) > 0;
+function map_ch(i, j) = let (x = hole(i), y = hole(j))
+    is_screw(x, y) ? "o"
+  : in_slot([cells_x*cell - x, y]) ? "#"
+  : min([for (sx = snap_pos(cells_x), sy = snap_pos(cells_y)) max(abs(x - sx), abs(y - sy))]) < cell/2 ? "s"
+  : x > foot_x[0] && x < foot_x[1] && y > foot_y[0] && y < foot_y[1] ? "x" : ".";
+// Geometry for spec.py (the spec.png drawing), face view in mm. Echo prints this as JSON.
+echo(Spec = [["cells", [cells_x, cells_y]], ["cell", cell], ["edge_gap", edge_gap], ["snap_w", snap_w],
+    ["slot_r", slot_r], ["margins", [margin_a, margin_b, margin_l, margin_r]],
+    ["snaps", [for (x = snap_pos(cells_x), y = snap_pos(cells_y)) [x, y]]],
+    ["caps", [[foot_x[0], foot_y[0], foot_x[1], Y0 - wall + clen[0]], [foot_x[0], foot_y[1] - clen[1], foot_x[1], foot_y[1]]]],
+    ["device", [X0 + fit, Y0 + fit/2, device_w, device_h]],
+    ["screws", [for (x = screw_xs, y = screw_ys) [x, y]]],
+    ["slots", [for (k = [0 : len(slots) - 1]) if (slots[k] != [0, 0, 0, 0])
+        [k + 1, slots[k], [for (g = slot_segs(slots[k], cells_x, cells_y, slot_r)) [for (q = g) [cells_x*cell - q[0], q[1]]]]]]]]);
+echo(str("Map:     ", cat([for (i = [0 : 2*cells_x - 1]) str(i % 10, " ")])));
+for (j = [2*cells_y - 1 : -1 : 0])
+    echo(str("Map: ", j < 10 ? " " : "", j, "  ", cat([for (i = [0 : 2*cells_x - 1]) str(map_ch(i, j), " ")])));
 
 if (part == "plate") gearplate(keep);
 else {

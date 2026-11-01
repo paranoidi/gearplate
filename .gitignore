@@ -6,3 +6,4 @@ devices/*/*.stl
 devices/*/*.3mf
 devices/*/*.png
 devices/*/*.echo
+devices/*/*.svg

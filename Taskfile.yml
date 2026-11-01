@@ -2,10 +2,12 @@
 #   task                 all presets -> out/<preset>.stl (skips up-to-date ones)
 #   task stl P=2x3       one preset (from gearplate.json, bracket.json, stacking.json or snap.json)
 #   task assembly        plate + caps + device fit check -> out/assembly.3mf/.png
-#   task device          interactive: name a device, enter size + cap cutouts (end wall or top) -> devices/<name>/
+#   task device          interactive (device.sh): size, cap cutouts, plate margins, wire slots -> devices/<name>/
+#   task edit-device [D=switch]  same questions for an existing device, saved answers as defaults
+#   task device:check D=switch  plate size + hole map (slot indices) for one device, no geometry
 #   task device:build D=switch rebuild one device from devices/switch/switch.json (hand-editable)
 #   task custom NAME=4x2 ARGS='-D cells_x=4 -D cells_y=2'
-#   task test            logic checks
+#   task test            logic checks (and spec.py)
 #   task setup           fetch latest OpenSCAD nightly + BOSL2 into .tools/ (used automatically)
 version: '3'
 
@@ -90,67 +92,37 @@ tasks:
       - '{{.OPENSCAD}} -o out/assembly.png --imgsize=1000,800 --viewall --autocenter --camera=0,0,0,55,0,25,0 assembly.scad'
 
   device:
-    desc: 'Interactive: name a device, enter its size and cap cutouts, build its smallest assembly'
+    desc: 'Interactive: name a device, enter its size, cap cutouts, plate margins and wire slots, build it'
     interactive: true
     silent: true
+    env: { TASK_EXE: '{{.TASK_EXE}}' }
+    cmds: [bash device.sh]
+
+  edit-device:
+    desc: 'Interactive: edit an existing device (D=<name> or asked); every answer defaults to its saved value'
+    interactive: true
+    silent: true
+    env: { TASK_EXE: '{{.TASK_EXE}}' }
+    cmds: ['bash device.sh --edit {{.D}}']
+
+  device:check:
+    desc: Plate size, hole map and asserts for one device (D=<name>), no geometry
+    label: device-check-{{.D}}
+    requires: { vars: [D] }
+    silent: true
+    vars:
+      DIR: devices/{{.D}}
+      F: devices/{{.D}}/{{.D}}.json
+      ARGS:
+        sh: "[ -f {{.F}} ] && jq -r --arg n {{.D}} '.parameterSets[$n] | to_entries | map(\"-D\", \"\\(.key)=\\(.value)\") | @sh' {{.F}} || true"
+    preconditions:
+      - sh: '[ -f {{.F}} ]'
+        msg: 'No {{.F}}; create it with task device'
     cmds:
       - |
-        printf 'Device name (e.g. switch): '; read -r name
-        echo "$name" | grep -qE '^[A-Za-z0-9_-]+$' || { echo "name must be letters, digits, - or _" >&2; exit 1; }
-        f=devices/$name/$name.json
-        if [ -f "$f" ]; then echo "Editing $f (Enter keeps the value in brackets)"; fi
-        # stored answer for key $1, else default $2
-        get() { v=; if [ -f "$f" ]; then v=$(jq -r --arg n "$name" --arg k "$1" '.parameterSets[$n][$k] // empty' "$f"); fi; echo "${v:-$2}"; }
-        ask() { d=$(get "$1" "$2"); printf '%s [%s]: ' "$3" "$d" >&2; read -r v; echo "${v:-$d}"; }
-        num() { echo "$1" | grep -qE '^[0-9]+(\.[0-9]+)?$' || { echo "not a number: $1" >&2; exit 1; }; }
-        w=$(ask device_w 60 'Device width mm'); num "$w"
-        h=$(ask device_h 100 'Device height mm (between the caps)'); num "$h"
-        d=$(ask device_d 25 'Device depth mm (plate to front)'); num "$d"
-        fh=$(get full_holes true)
-        if [ "$fh" = true ]; then yn='Y/n'; else yn='y/N'; fi
-        printf 'Reusable plate (full holes) [%s] ? ' "$yn"; read -r v
-        case "$v" in [yY]*) fh=true ;; [nN]*) fh=false ;; '') ;; *) echo "answer y or n" >&2; exit 1 ;; esac
-        echo 'Per cap: a top cutout (strap window open through the end, e.g. for LEDs) as w,l,x'
-        echo '(l = length along the device from its end), then up to 4 end-wall cutouts as w,h,x.'
-        echo 'x: 0 = centred, + = right seen from outside, strap on top.'
-        echo 'Blank line = keep shown value / no more cutouts, - = remove.'
-        for cap in a b; do
-          cur=$(get ${cap}_top '[0, 0, 0]' | tr -d '[] ')
-          if [ "$cur" = 0,0,0 ]; then cur=; fi
-          printf 'Cap %s top cutout [%s]: ' $(echo $cap | tr ab AB) "$cur"; read -r c
-          c=$(echo "${c:-$cur}" | tr -d '[] ')
-          if [ "$c" = - ]; then c=; fi
-          if [ -n "$c" ]; then
-            echo "$c" | grep -qE '^[0-9.]+,[0-9.]+,-?[0-9.]+$' || { echo "cutout must be w,l,x: $c" >&2; exit 1; }
-            top="[$(echo "$c" | sed 's/,/, /g')]"
-          else top='[0, 0, 0]'; fi
-          eval ${cap}t='$top'
-          more=1
-          for k in 1 2 3 4; do
-            cur=$(get ${cap}_cut$k '[0, 0, 0]' | tr -d '[] ')
-            if [ "$cur" = 0,0,0 ]; then cur=; fi
-            c=
-            if [ -n "$cur" ] || [ $more = 1 ]; then
-              printf 'Cap %s cutout %s [%s]: ' $(echo $cap | tr ab AB) $k "$cur"; read -r c
-              c=$(echo "${c:-$cur}" | tr -d '[] ')
-              if [ -z "$c" ]; then more=0; fi
-              if [ "$c" = - ]; then c=; fi
-            fi
-            if [ -n "$c" ]; then
-              echo "$c" | grep -qE '^[0-9.]+,[0-9.]+,-?[0-9.]+$' || { echo "cutout must be w,h,x: $c" >&2; exit 1; }
-              c="[$(echo "$c" | sed 's/,/, /g')]"
-            else c='[0, 0, 0]'; fi
-            eval ${cap}$k='$c'
-          done
-        done
-        mkdir -p devices/$name
-        jq -n --arg n "$name" --arg w "$w" --arg h "$h" --arg d "$d" --arg fh "$fh" \
-          --arg a1 "$a1" --arg a2 "$a2" --arg a3 "$a3" --arg a4 "$a4" \
-          --arg b1 "$b1" --arg b2 "$b2" --arg b3 "$b3" --arg b4 "$b4" --arg at "$at" --arg bt "$bt" \
-          '{fileFormatVersion: "1", parameterSets: {($n): {device_w: $w, device_h: $h, device_d: $d, full_holes: $fh,
-            a_cut1: $a1, a_cut2: $a2, a_cut3: $a3, a_cut4: $a4, b_cut1: $b1, b_cut2: $b2, b_cut3: $b3, b_cut4: $b4, a_top: $at, b_top: $bt}}}' > "$f"
-        echo "Saved $f"
-        "{{.TASK_EXE}}" device:build D="$name"
+        {{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/assembly.echo assembly.scad 2>/dev/null
+        grep -E 'Assembly:|Map:|ERROR|WARNING' {{.DIR}}/assembly.echo | sed 's/^ECHO: "//; s/"$//'
+        ! grep -qE 'ERROR|WARNING' {{.DIR}}/assembly.echo
 
   device:build:
     desc: Build one device (D=<name>) from devices/<name>/<name>.json into that directory
@@ -167,14 +139,17 @@ tasks:
       - sh: '[ -f {{.F}} ]'
         msg: 'No {{.F}}; create it with task device'
     method: checksum
-    sources: ['{{.F}}', assembly.scad, gearplate.scad, bracket.scad, opengrid-snap.scad, .tools/openscad.version]
-    generates: ['{{.DIR}}/assembly.3mf', '{{.DIR}}/assembly.png', '{{.DIR}}/plate.stl', '{{.DIR}}/caps.stl']
+    sources: ['{{.F}}', assembly.scad, gearplate.scad, bracket.scad, opengrid-snap.scad, spec.py, .tools/openscad.version]
+    generates: ['{{.DIR}}/assembly.3mf', '{{.DIR}}/assembly.png', '{{.DIR}}/plate.stl', '{{.DIR}}/caps.stl']  # not spec.png: optional
     cmds:
-      # .echo first: fast, and shows the chosen plate size or a failed assert before rendering
+      # .echo first: fast, and shows the plate size and hole map or a failed assert before rendering
+      - task: device:check
+        vars: { D: '{{.D}}' }
+      # coordinate drawing (holes, caps, margins, slots) from the Spec echo
+      # optional: skipped with a note when python3 is missing (spec.py itself falls back to .svg)
       - |
-        {{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/assembly.echo assembly.scad 2>/dev/null
-        grep -E 'Assembly:|ERROR|WARNING' {{.DIR}}/assembly.echo
-        ! grep -qE 'ERROR|WARNING' {{.DIR}}/assembly.echo
+        if command -v python3 >/dev/null; then python3 spec.py {{.DIR}}/assembly.echo {{.DIR}}/spec.png {{.D}}
+        else echo "skipping spec.png: python3 not found" >&2; fi
       - '{{.OPENSCAD}} {{.ARGS}} --enable=lazy-union -o {{.DIR}}/assembly.3mf assembly.scad'
       - '{{.OPENSCAD}} {{.ARGS}} -o {{.DIR}}/assembly.png --imgsize=1000,800 --viewall --autocenter --camera=0,0,0,55,0,25,0 assembly.scad'
       - '{{.OPENSCAD}} {{.ARGS}} -D ''part="plate"'' -o {{.DIR}}/plate.stl assembly.scad'
@@ -195,20 +170,32 @@ tasks:
           f=${fp%%:*} p=${fp#*:}
           {{.OPENSCAD}} -p $f.json -P $p --render --imgsize=800,600 --viewall --autocenter --colorscheme=Tomorrow -o docs/$p.png $f.scad
         done
+      # coordinate diagram: the unifi-8-60w device with example margins and a slot
+      - |
+        mkdir -p out
+        eval "set -- $(jq -r '.parameterSets["unifi-8-60w"] | to_entries | map("-D", "\(.key)=\(.value)") | @sh' devices/unifi-8-60w/unifi-8-60w.json)"
+        {{.OPENSCAD}} "$@" -D margin_a=1 -D margin_b=1 -D margin_r=1 -D 'slot1=[3,1,10,1]' -o out/coordinates.echo assembly.scad 2>/dev/null
+        command -v python3 >/dev/null || { echo "skipping docs/coordinates.png: python3 not found" >&2; exit 0; }
+        python3 spec.py out/coordinates.echo docs/coordinates.png 'unifi-8-60w with margin_a = margin_b = margin_r = 1 and slot1 = [3, 1, 10, 1]'
       # preview mode keeps the part colours
       - '{{.OPENSCAD}} --imgsize=800,600 --viewall --autocenter --camera=0,0,0,55,0,25,0 --colorscheme=Tomorrow -o docs/assembly.png assembly.scad'
 
   test:
-    desc: Run logic asserts (seam continuity, snap de-dup, slots, bracket grid, assembly, stacking, snap)
+    desc: Run logic asserts (seam continuity, snap de-dup, slots, bracket grid, assembly, margins, stacking, snap)
     silent: true
     cmds:
       - mkdir -p out
       # .echo export needs no geometry, but exits 0 on failed asserts: grep for them
-      - for: [seam, slots, bracket, assembly, stacking, snap]
+      - for: [seam, slots, bracket, assembly, margin, stacking, snap]
         cmd: |
           {{.OPENSCAD}} -o out/{{.ITEM}}.echo tests/{{.ITEM}}.scad 2>/dev/null
           cat out/{{.ITEM}}.echo
           ! grep -qE 'ERROR|WARNING' out/{{.ITEM}}.echo
+      # spec.py parses the assembly's Spec echo (an edge-exit slot exercises the extensions)
+      - |
+        {{.OPENSCAD}} -D 'slot1=[2,7,5,-1]' -o out/spec.echo assembly.scad 2>/dev/null
+        command -v python3 >/dev/null || { echo "SKIP spec (no python3)"; exit 0; }
+        python3 spec.py out/spec.echo out/spec.svg test && grep -q 'slot1' out/spec.svg && echo 'PASS spec'
 
   setup:
     desc: Download latest OpenSCAD nightly (Manifold) and BOSL2 into .tools/

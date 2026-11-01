@@ -17,16 +17,21 @@ Parametric OpenSCAD generator for device mounting boards that snap onto an openG
 
 ## Usage
 
-Requires [Task](https://taskfile.dev), `jq`, `curl` and `git`.
+Requires [Task](https://taskfile.dev), `jq`, `curl` and `git`. Optional: `python3` plus `rsvg-convert` or `inkscape` for the device `spec.png` (without a converter you get `spec.svg`; without python3 it is skipped).
 
 ```sh
 task setup     # download OpenSCAD nightly + BOSL2 into .tools/ (Linux x86_64)
 task           # build every preset in *.json into out/*.stl
 task stl P=4x4 # build one preset
-task device    # interactive: enter a device's size and cutouts, get the smallest plate + caps
+task device    # interactive: device size, cap cutouts, plate margins + wire slots -> plate + caps
+task edit-device D=switch  # same questions, saved answers as defaults
 task test      # logic checks
 task images    # re-render the pictures in docs/
 ```
+
+Plate coordinates for margins and wire slots, seen from the device face (each device build also writes its own `devices/<name>/spec.png`):
+
+![Plate coordinates](docs/coordinates.png)
 
 Presets are OpenSCAD Customizer parameter sets (`gearplate.json`, `bracket.json`, `stacking.json`, `snap.json`), so the `.scad` files also work in the OpenSCAD GUI. See [DESIGN.md](DESIGN.md) for parameters and design decisions.
 
